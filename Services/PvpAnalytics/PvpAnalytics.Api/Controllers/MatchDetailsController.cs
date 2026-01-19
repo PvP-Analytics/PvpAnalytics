@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PvpAnalytics.Application.Services;
 using PvpAnalytics.Core.DTOs;
-using PvpAnalytics.Shared;
+using PvpAnalytics.Shared.Constants;
 
 namespace PvpAnalytics.Api.Controllers;
 

@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using PvpAnalytics.Shared;
+using PvpAnalytics.Shared.Constants;
 
 namespace PvpAnalytics.Core.Configuration;
 

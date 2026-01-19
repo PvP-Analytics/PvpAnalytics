@@ -1,4 +1,4 @@
-namespace PvpAnalytics.Shared;
+namespace PvpAnalytics.Shared.Constants;
 
 /// <summary>
 /// Central application-wide constants for routes and configuration.
@@ -27,7 +27,6 @@ public static class AppConstants
 
     public static class ConfigSectionNames
     {
-        // High-level configuration sections
         public const string WowApi = "WowApi";
     }
 

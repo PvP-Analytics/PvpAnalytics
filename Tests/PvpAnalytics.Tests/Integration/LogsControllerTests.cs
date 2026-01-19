@@ -5,7 +5,7 @@ using System.Text;
 using FluentAssertions;
 using PvpAnalytics.Core.Entities;
 using PvpAnalytics.Core.Enum;
-using PvpAnalytics.Shared;
+using PvpAnalytics.Shared.Constants;
 using Xunit;
 
 namespace PvpAnalytics.Tests.Integration;

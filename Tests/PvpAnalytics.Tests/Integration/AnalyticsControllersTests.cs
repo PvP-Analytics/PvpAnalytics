@@ -3,9 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using PvpAnalytics.Core.Entities;
 using PvpAnalytics.Core.Enum;
 using PvpAnalytics.Infrastructure;
-using PvpAnalytics.Shared;
 using System.Net;
 using System.Net.Http.Json;
+using PvpAnalytics.Shared.Constants;
 using Xunit;
 
 namespace PvpAnalytics.Tests.Integration;

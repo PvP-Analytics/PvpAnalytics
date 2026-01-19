@@ -7,7 +7,7 @@ using PaymentService.Application.Services;
 using PaymentService.Core.Entities;
 using PaymentService.Core.Enum;
 using PaymentService.Core.Repositories;
-using PvpAnalytics.Shared;
+using PvpAnalytics.Shared.Constants;
 
 namespace PaymentService.Api.Controllers;
 

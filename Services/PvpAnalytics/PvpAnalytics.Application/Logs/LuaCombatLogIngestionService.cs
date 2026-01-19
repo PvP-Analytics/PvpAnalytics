@@ -8,7 +8,7 @@ using PvpAnalytics.Core.Enum;
 using PvpAnalytics.Core.Logs;
 using PvpAnalytics.Core.Models;
 using PvpAnalytics.Core.Repositories;
-using PvpAnalytics.Shared;
+using PvpAnalytics.Shared.Constants;
 
 namespace PvpAnalytics.Application.Logs;
 
@@ -128,11 +128,10 @@ public class LuaCombatLogIngestionService(
 
     private void CollectPlayersForLookup(List<string> logLines, DateTime startTime)
     {
-        foreach (var logLine in logLines)
+        foreach (var parsed in logLines
+                     .Select(logLine => SimplifiedLogParser.ParseLine(logLine, startTime))
+                     .OfType<ParsedCombatLogEvent>())
         {
-            var parsed = SimplifiedLogParser.ParseLine(logLine, startTime);
-            if (parsed == null) continue;
-
             AddPlayerToPendingIfValid(parsed.SourceName);
             AddPlayerToPendingIfValid(parsed.TargetName);
         }
@@ -631,14 +630,15 @@ public class LuaCombatLogIngestionService(
     private void ProcessSingleRootPlayer(LuaPlayerData luaPlayer)
     {
         var existingPlayer = _playerCache.GetCached(luaPlayer.Name!);
-        
+
         if (existingPlayer != null)
         {
             UpdateExistingPlayerFromRootData(existingPlayer, luaPlayer);
         }
         else
         {
-            logger.LogDebug("Player {PlayerName}-{Realm} will be created. Root data available: Class: {Class}, Faction: {Faction}",
+            logger.LogDebug(
+                "Player {PlayerName}-{Realm} will be created. Root data available: Class: {Class}, Faction: {Faction}",
                 luaPlayer.Name, luaPlayer.Realm, luaPlayer.Class, luaPlayer.Faction);
         }
     }
@@ -654,15 +654,17 @@ public class LuaCombatLogIngestionService(
         if (HasPlayerDataChanged(existingPlayer, originalClass, originalFaction, originalSpec))
         {
             _playerCache.MarkForUpdate(existingPlayer);
-            logger.LogDebug("Updated existing player {PlayerName}-{Realm} from root data. Class: {Class}, Faction: {Faction}",
+            logger.LogDebug(
+                "Updated existing player {PlayerName}-{Realm} from root data. Class: {Class}, Faction: {Faction}",
                 luaPlayer.Name, luaPlayer.Realm, luaPlayer.Class, luaPlayer.Faction);
         }
     }
 
-    private static bool HasPlayerDataChanged(Player player, string originalClass, string originalFaction, string originalSpec)
+    private static bool HasPlayerDataChanged(Player player, string originalClass, string originalFaction,
+        string originalSpec)
     {
-        return player.Class != originalClass || 
-               player.Faction != originalFaction || 
+        return player.Class != originalClass ||
+               player.Faction != originalFaction ||
                player.Spec != originalSpec;
     }
 
@@ -684,8 +686,8 @@ public class LuaCombatLogIngestionService(
                 continue;
 
             // Only update if player still has empty fields
-            if (string.IsNullOrWhiteSpace(player.Class) || 
-                string.IsNullOrWhiteSpace(player.Faction) || 
+            if (string.IsNullOrWhiteSpace(player.Class) ||
+                string.IsNullOrWhiteSpace(player.Faction) ||
                 string.IsNullOrWhiteSpace(player.Spec))
             {
                 var originalClass = player.Class;
@@ -694,12 +696,13 @@ public class LuaCombatLogIngestionService(
 
                 UpdatePlayerFromLuaData(player, luaPlayer);
 
-                if (player.Class != originalClass || 
-                    player.Faction != originalFaction || 
+                if (player.Class != originalClass ||
+                    player.Faction != originalFaction ||
                     player.Spec != originalSpec)
                 {
                     _playerCache.MarkForUpdate(player);
-                    logger.LogDebug("Applied root player data to newly created player {PlayerName}-{Realm}. Class: {Class}, Faction: {Faction}",
+                    logger.LogDebug(
+                        "Applied root player data to newly created player {PlayerName}-{Realm}. Class: {Class}, Faction: {Faction}",
                         luaPlayer.Name, luaPlayer.Realm, luaPlayer.Class, luaPlayer.Faction);
                 }
             }

@@ -1,4 +1,4 @@
-using PvpAnalytics.Shared;
+using PvpAnalytics.Shared.Constants;
 
 namespace PvpAnalytics.Core.Logs;
 

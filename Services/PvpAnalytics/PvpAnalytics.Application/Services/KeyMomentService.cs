@@ -3,7 +3,7 @@ using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Core.Entities;
 using PvpAnalytics.Core.Logs;
 using PvpAnalytics.Infrastructure;
-using PvpAnalytics.Shared;
+using PvpAnalytics.Shared.Constants;
 
 namespace PvpAnalytics.Application.Services;
 

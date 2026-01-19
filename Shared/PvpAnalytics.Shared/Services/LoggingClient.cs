@@ -28,7 +28,7 @@ public sealed class LoggingClient : ILoggingClient
     private readonly Lock _timerLock = new();
     private Timer? _heartbeatTimer;
     private CancellationTokenSource? _heartbeatCts;
-    private int _disposed; // 0 = false, 1 = true (for Interlocked operations)
+    private int _disposed;
 
     public LoggingClient(IConfiguration configuration, ILogger<LoggingClient>? logger = null)
     {
@@ -115,27 +115,21 @@ public sealed class LoggingClient : ILoggingClient
         CancellationTokenSource? oldCts;
         lock (_timerLock)
         {
-            // Atomically swap out the old timer and cancellation token source
             oldTimer = Interlocked.Exchange(ref _heartbeatTimer, null);
             oldCts = Interlocked.Exchange(ref _heartbeatCts, null);
             
-            // Create new cancellation token source for this heartbeat session
             var newCts = new CancellationTokenSource();
             _heartbeatCts = newCts;
             
-            // Create new timer with a safe callback wrapper
             _heartbeatTimer = new Timer(_ =>
             {
-                // Check if cancellation was requested (timer was stopped/disposed)
                 if (newCts.Token.IsCancellationRequested)
                     return;
                 
-                // Use Task.Run to handle async operation safely
                 Task.Run(async () =>
                 {
                     try
                     {
-                        // Check again inside the async context
                         if (!newCts.Token.IsCancellationRequested)
                         {
                             await SendHeartbeatAsync(serviceName, newCts.Token);
@@ -153,24 +147,21 @@ public sealed class LoggingClient : ILoggingClient
             }, null, TimeSpan.Zero, interval);
         }
         
-        // Dispose old timer and cancel old CTS outside the lock
         oldCts?.Cancel();
         oldCts?.Dispose();
         oldTimer?.Dispose();
     }
 
-    public void StopHeartbeat()
+    private void StopHeartbeat()
     {
         Timer? timerToDispose;
         CancellationTokenSource? ctsToDispose;
         lock (_timerLock)
         {
-            // Atomically swap out the timer and cancellation token source
             timerToDispose = Interlocked.Exchange(ref _heartbeatTimer, null);
             ctsToDispose = Interlocked.Exchange(ref _heartbeatCts, null);
         }
         
-        // Cancel and dispose outside the lock
         if (ctsToDispose != null)
         {
             ctsToDispose.Cancel();
@@ -204,7 +195,6 @@ public sealed class LoggingClient : ILoggingClient
 
     private void Dispose(bool disposing)
     {
-        // Ensure we only dispose once, even if called from multiple threads
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
 
@@ -213,7 +203,6 @@ public sealed class LoggingClient : ILoggingClient
             return;
         }
 
-        // Dispose managed resources
         StopHeartbeat();
         _channel.Dispose();
     }
