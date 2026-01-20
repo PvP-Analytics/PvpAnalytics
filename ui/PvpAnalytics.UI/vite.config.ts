@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
 // Plugin to handle SPA routing - rewrite all requests to index.html
@@ -42,6 +43,6 @@ function spaFallback(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), spaFallback()],
+  plugins: [react(), spaFallback(), tailwindcss()],
   base: '/',
 })
