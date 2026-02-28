@@ -10,4 +10,10 @@ RUN dotnet publish Workers/PvpAnalytics.Worker/PvpAnalytics.Worker.csproj -c Rel
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 COPY --from=build /app/publish .
+
+RUN groupadd --gid 1000 worker \
+    && useradd --uid 1000 --gid worker --no-create-home --shell /sbin/nologin worker \
+    && chown -R worker:worker /app
+
+USER worker
 ENTRYPOINT ["dotnet", "PvpAnalytics.Worker.dll"]

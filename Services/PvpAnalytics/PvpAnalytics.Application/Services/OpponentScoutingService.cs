@@ -11,8 +11,8 @@ public interface IOpponentScoutingService
 {
     Task<OpponentScoutDto?> GetScoutingDataAsync(long playerId, CancellationToken ct = default);
     Task<List<OpponentScoutDto>> SearchPlayersAsync(string name, string? realm = null, CancellationToken ct = default);
-    Task<List<CompositionWinRate>> GetPlayerCompositionsAsync(long playerId, CancellationToken ct = default);
-    Task<List<ClassMatchup>> GetPlayerMatchupsAsync(long playerId, CancellationToken ct = default);
+    Task<List<CompositionWinRate>> GetPlayerCompositionsAsync(long playerId, GlobalCoefficients? coefficients = null, CancellationToken ct = default);
+    Task<List<ClassMatchup>> GetPlayerMatchupsAsync(long playerId, GlobalCoefficients? coefficients = null, CancellationToken ct = default);
 }
 
 public class OpponentScoutingService(
@@ -52,7 +52,7 @@ public class OpponentScoutingService(
         scout.PeakRating = matchResults.Max(mr => Math.Max(mr.RatingBefore, mr.RatingAfter));
         scout.CurrentSpec = latestResult.Spec;
 
-        scout.CommonCompositions = await GetPlayerCompositionsAsync(playerId, ct);
+        scout.CommonCompositions = await GetPlayerCompositionsAsync(playerId, coefficients, ct);
 
         var mapStats = matchResults
             .GroupBy(mr => mr.Match.MapName)
@@ -99,7 +99,7 @@ public class OpponentScoutingService(
             AverageEffectiveHealing = Math.Round(avgEffHealing, 2)
         };
 
-        scout.ClassMatchups = await GetPlayerMatchupsAsync(playerId, ct);
+        scout.ClassMatchups = await GetPlayerMatchupsAsync(playerId, coefficients, ct);
 
         return scout;
     }
@@ -133,8 +133,10 @@ public class OpponentScoutingService(
     }
 
     public async Task<List<CompositionWinRate>> GetPlayerCompositionsAsync(long playerId,
-        CancellationToken ct = default)
+        GlobalCoefficients? coefficients = null, CancellationToken ct = default)
     {
+        var coeffs = coefficients ?? await coefficientsProvider.GetCoefficientsAsync(ct);
+
         var playerMatches = await dbContext.MatchResults
             .Where(mr => mr.PlayerId == playerId)
             .Select(mr => mr.MatchId)
@@ -175,7 +177,7 @@ public class OpponentScoutingService(
                 Composition = g.Key,
                 Matches = g.Count(),
                 Wins = g.Count(tc => tc.IsWinner),
-                WinRate = WinRateSmoothing.Smooth(g.Count(tc => tc.IsWinner), g.Count(), GlobalCoefficients.Default),
+                WinRate = WinRateSmoothing.Smooth(g.Count(tc => tc.IsWinner), g.Count(), coeffs),
                 AverageRating = Math.Round(g.Average(tc => tc.Rating), 0)
             })
             .OrderByDescending(c => c.Matches)
@@ -185,8 +187,10 @@ public class OpponentScoutingService(
         return compositionGroups;
     }
 
-    public async Task<List<ClassMatchup>> GetPlayerMatchupsAsync(long playerId, CancellationToken ct = default)
+    public async Task<List<ClassMatchup>> GetPlayerMatchupsAsync(long playerId, GlobalCoefficients? coefficients = null, CancellationToken ct = default)
     {
+        var coeffs = coefficients ?? await coefficientsProvider.GetCoefficientsAsync(ct);
+
         var playerMatchIds = await dbContext.MatchResults
             .Where(mr => mr.PlayerId == playerId)
             .Select(mr => mr.MatchId)
@@ -220,7 +224,7 @@ public class OpponentScoutingService(
                 OpponentSpec = g.Key.Spec,
                 Matches = g.Count(),
                 Wins = g.Count(mr => !mr.IsWinner), // Opponent lost = player won
-                WinRate = WinRateSmoothing.Smooth(g.Count(mr => !mr.IsWinner), g.Count(), GlobalCoefficients.Default)
+                WinRate = WinRateSmoothing.Smooth(g.Count(mr => !mr.IsWinner), g.Count(), coeffs)
             })
             .OrderByDescending(m => m.Matches)
             .Take(20)

@@ -12,6 +12,8 @@ public class RedisGlobalCoefficientsProvider(
     private const string GlobalPriorKey = "pvpanalytics:global_prior";
     private const string SignificanceThresholdKey = "pvpanalytics:significance_threshold";
 
+    private volatile bool _loggedMissingCoefficients;
+
     public async Task<GlobalCoefficients> GetCoefficientsAsync(CancellationToken ct = default)
     {
         try
@@ -22,10 +24,14 @@ public class RedisGlobalCoefficientsProvider(
 
             if (priorValue.IsNullOrEmpty || thresholdValue.IsNullOrEmpty)
             {
-                logger.LogWarning(
-                    "Global coefficients not found in Redis, using defaults (prior={Prior}, C={C})",
-                    GlobalCoefficients.Default.GlobalPrior,
-                    GlobalCoefficients.Default.SignificanceThreshold);
+                if (!_loggedMissingCoefficients)
+                {
+                    _loggedMissingCoefficients = true;
+                    logger.LogWarning(
+                        "Global coefficients not found in Redis, using defaults (prior={Prior}, C={C})",
+                        GlobalCoefficients.Default.GlobalPrior,
+                        GlobalCoefficients.Default.SignificanceThreshold);
+                }
                 return GlobalCoefficients.Default;
             }
 

@@ -223,8 +223,11 @@ public class MatchupAnalyticsService(PvpAnalyticsDbContext dbContext) : IMatchup
         return teams.FirstOrDefault(t => TeamHasClass(t, className, spec));
     }
 
+    /// <summary>Returns smoothed win rate (0–100), or <see cref="double.NaN"/> when there is no data (totalMatches == 0).</summary>
     private static double CalculateWinRate(int wins, int totalMatches)
     {
+        if (totalMatches == 0)
+            return double.NaN;
         return WinRateSmoothing.Smooth(wins, totalMatches, GlobalCoefficients.Default);
     }
 

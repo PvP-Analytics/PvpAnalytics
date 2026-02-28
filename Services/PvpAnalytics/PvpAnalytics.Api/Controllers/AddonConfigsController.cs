@@ -47,7 +47,8 @@ public class AddonConfigsController(IAddonConfigService service) : ControllerBas
     [HttpPost]
     public async Task<ActionResult> Create([FromBody] AddonConfig config, CancellationToken ct)
     {
-        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (!TryGetUserId(out var userId))
+            return Unauthorized();
         config.CreatedByUserId = userId;
         var created = await service.CreateAsync(config, ct);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
@@ -57,7 +58,8 @@ public class AddonConfigsController(IAddonConfigService service) : ControllerBas
     [HttpPut("{id:long}")]
     public async Task<ActionResult> Update(long id, [FromBody] AddonConfig config, CancellationToken ct)
     {
-        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (!TryGetUserId(out var userId))
+            return Unauthorized();
         var updated = await service.UpdateAsync(id, config, userId, ct);
         if (!updated) return NotFound();
         return NoContent();
@@ -67,9 +69,21 @@ public class AddonConfigsController(IAddonConfigService service) : ControllerBas
     [HttpDelete("{id:long}")]
     public async Task<ActionResult> Delete(long id, CancellationToken ct)
     {
-        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (!TryGetUserId(out var userId))
+            return Unauthorized();
         var deleted = await service.DeleteAsync(id, userId, ct);
         if (!deleted) return NotFound();
         return NoContent();
+    }
+
+    private bool TryGetUserId(out Guid userId)
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(value) || !Guid.TryParse(value, out userId))
+        {
+            userId = default;
+            return false;
+        }
+        return true;
     }
 }

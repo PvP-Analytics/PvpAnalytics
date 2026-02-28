@@ -13,10 +13,9 @@ public class CommunityRankingService(PvpAnalyticsDbContext dbContext) : ICommuni
 {
     public async Task<CommunityRankingDto> GetRankingsAsync(string rankingType, string period = "weekly", string? scope = null, int limit = 50, CancellationToken ct = default)
     {
-        var consentedPlayerIds = await dbContext.PlayerProfiles
+        var consentedPlayerIds = dbContext.PlayerProfiles
             .Where(pp => pp.PublicConsent)
-            .Select(pp => pp.PlayerId)
-            .ToListAsync(ct);
+            .Select(pp => pp.PlayerId);
 
         var rankings = await dbContext.CommunityRankings
             .Include(cr => cr.Player)

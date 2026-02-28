@@ -9,6 +9,7 @@ const DEFAULT_SIGNIFICANCE_THRESHOLD = 20
 /**
  * Bayesian-smoothed win rate (returns 0–100 percentage).
  * Formula: (wins + C * globalPrior) / (totalMatches + C) * 100
+ * Inputs are validated and clamped: wins in [0, totalMatches], globalPrior in [0,1], c > 0.
  */
 export function smoothedWinRate(
   wins: number,
@@ -16,8 +17,13 @@ export function smoothedWinRate(
   globalPrior: number = DEFAULT_GLOBAL_PRIOR,
   c: number = DEFAULT_SIGNIFICANCE_THRESHOLD,
 ): number {
-  if (totalMatches <= 0) return Math.round(globalPrior * 100 * 100) / 100
-  const smoothed = (wins + c * globalPrior) / (totalMatches + c)
+  const prior = Math.max(0, Math.min(1, globalPrior))
+  const safeC = c <= 0 ? DEFAULT_SIGNIFICANCE_THRESHOLD : c
+
+  if (totalMatches <= 0) return Math.round(prior * 100 * 100) / 100
+
+  const clampedWins = Math.max(0, Math.min(totalMatches, wins))
+  const smoothed = (clampedWins + safeC * prior) / (totalMatches + safeC)
   return Math.round(smoothed * 100 * 100) / 100
 }
 

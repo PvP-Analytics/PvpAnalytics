@@ -4,6 +4,22 @@ using StackExchange.Redis;
 
 namespace PvpAnalytics.Worker.Jobs;
 
+internal static class ScalarConversion
+{
+    internal static double ToDoubleOrDefault(object? result, double defaultValue)
+    {
+        if (result == null) return defaultValue;
+        if (result is IConvertible convertible)
+        {
+            try { return Convert.ToDouble(convertible, CultureInfo.InvariantCulture); }
+            catch { /* fall through to TryParse */ }
+        }
+        if (double.TryParse(Convert.ToString(result), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+            return parsed;
+        return defaultValue;
+    }
+}
+
 public class GlobalCoefficientsComputationJob(
     IConnectionMultiplexer redis,
     DatabaseConnectionString connectionString,
@@ -65,7 +81,7 @@ public class GlobalCoefficientsComputationJob(
 
         await using var cmd = new NpgsqlCommand(sql, conn);
         var result = await cmd.ExecuteScalarAsync(ct);
-        return result is double d ? d : 0.5;
+        return ScalarConversion.ToDoubleOrDefault(result, 0.5);
     }
 
     private static async Task<double> ComputeSignificanceThresholdAsync(NpgsqlConnection conn, CancellationToken ct)
@@ -84,6 +100,7 @@ public class GlobalCoefficientsComputationJob(
 
         await using var cmd = new NpgsqlCommand(sql, conn);
         var result = await cmd.ExecuteScalarAsync(ct);
-        return result is double d && d > 0 ? d : 20.0;
+        var value = ScalarConversion.ToDoubleOrDefault(result, 20.0);
+        return value > 0 ? value : 20.0;
     }
 }

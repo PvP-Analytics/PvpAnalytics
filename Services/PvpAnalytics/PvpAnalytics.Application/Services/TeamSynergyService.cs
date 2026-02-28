@@ -12,7 +12,9 @@ public interface ITeamSynergyService
     Task<PartnerSynergyDto?> GetPartnerSynergyAsync(long player1Id, long player2Id, CancellationToken ct = default);
 }
 
-public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyService
+public class TeamSynergyService(
+    PvpAnalyticsDbContext dbContext,
+    IGlobalCoefficientsProvider coefficientsProvider) : ITeamSynergyService
 {
     public async Task<TeamSynergyDto?> GetTeamSynergyAsync(long teamId, CancellationToken ct = default)
     {
@@ -20,15 +22,16 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
         if (team == null || team.Members.Count < 2)
             return null;
 
+        var coefficients = await coefficientsProvider.GetCoefficientsAsync(ct);
         var memberIds = team.Members.Select(m => m.PlayerId).ToList();
         var playerDict = team.Members.ToDictionary(m => m.PlayerId, m => m.Player);
 
         var teamMatches = await LoadTeamMatchesAsync(teamId, ct);
         var matchData = await LoadMatchDataAsync(memberIds, ct);
 
-        var partnerSynergies = CalculatePartnerSynergies(memberIds, playerDict, matchData);
-        var mapWinRates = CalculateMapWinRates(teamMatches);
-        var compositionWinRates = CalculateCompositionWinRates(team, teamMatches);
+        var partnerSynergies = CalculatePartnerSynergies(memberIds, playerDict, matchData, coefficients);
+        var mapWinRates = CalculateMapWinRates(teamMatches, coefficients);
+        var compositionWinRates = CalculateCompositionWinRates(team, teamMatches, coefficients);
         var overallScore = CalculateOverallScore(partnerSynergies);
 
         return CreateTeamSynergyDto(team, partnerSynergies, mapWinRates, compositionWinRates, overallScore);
@@ -78,7 +81,8 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
     private static List<PartnerSynergyDto> CalculatePartnerSynergies(
         List<long> memberIds,
         Dictionary<long, Player> playerDict,
-        TeamSynergyMatchData matchData)
+        TeamSynergyMatchData matchData,
+        GlobalCoefficients coefficients)
     {
         var partnerSynergies = new List<PartnerSynergyDto>();
 
@@ -93,7 +97,7 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
                     continue;
 
                 var synergy = CalculatePartnerSynergy(
-                    player1Id, player1, player2Id, player2, matchData);
+                    player1Id, player1, player2Id, player2, matchData, coefficients);
                 partnerSynergies.Add(synergy);
             }
         }
@@ -124,7 +128,8 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
         Player player1,
         long player2Id,
         Player player2,
-        TeamSynergyMatchData matchData)
+        TeamSynergyMatchData matchData,
+        GlobalCoefficients coefficients)
     {
         var togetherMatches = FindMatchesTogether(player1Id, player2Id, matchData.AllMatchResults);
 
@@ -138,7 +143,7 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
         }
 
         var stats = CalculateMatchStatsTogether(
-            player1Id, player2Id, togetherMatches, matchData);
+            player1Id, player2Id, togetherMatches, matchData, coefficients);
         var synergyScore = CalculateSynergyScore(stats.Wins, togetherMatches.Count);
 
         player1Info = new PlayerInfo(player1Id, player1.Name);
@@ -178,7 +183,8 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
         long player1Id,
         long player2Id,
         List<long> togetherMatches,
-        TeamSynergyMatchData matchData)
+        TeamSynergyMatchData matchData,
+        GlobalCoefficients coefficients)
     {
         var wins = 0;
         var totalRating = 0.0;
@@ -196,7 +202,7 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
         }
 
         var avgRating = ratingCount > 0 ? totalRating / ratingCount : 0.0;
-        var winRate = WinRateSmoothing.Smooth(wins, togetherMatches.Count, GlobalCoefficients.Default);
+        var winRate = WinRateSmoothing.Smooth(wins, togetherMatches.Count, coefficients);
 
         return new MatchStatsTogether
         {
@@ -284,7 +290,7 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
         double AverageRating,
         double SynergyScore);
 
-    private static Dictionary<string, double> CalculateMapWinRates(List<TeamMatch> teamMatches)
+    private static Dictionary<string, double> CalculateMapWinRates(List<TeamMatch> teamMatches, GlobalCoefficients coefficients)
     {
         return teamMatches
             .GroupBy(tm => tm.Match.MapName)
@@ -296,13 +302,13 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
                     if (total == 0)
                         return 0.0;
                     var wins = g.Count(tm => tm.IsWin);
-                    return WinRateSmoothing.Smooth(wins, total, GlobalCoefficients.Default);
+                    return WinRateSmoothing.Smooth(wins, total, coefficients);
                 }
             );
     }
 
     private static Dictionary<string, double> CalculateCompositionWinRates(
-        Team team, List<TeamMatch> teamMatches)
+        Team team, List<TeamMatch> teamMatches, GlobalCoefficients coefficients)
     {
         var compositionWinRates = new Dictionary<string, double>();
         
@@ -311,7 +317,8 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
 
         var classes = team.Members.Select(m => m.Player.Class).OrderBy(c => c).ToList();
         var composition = string.Join("-", classes);
-        compositionWinRates[composition] = WinRateSmoothing.Smooth(teamMatches.Count(tm => tm.IsWin), teamMatches.Count, GlobalCoefficients.Default);
+        if (teamMatches.Count > 0)
+            compositionWinRates[composition] = WinRateSmoothing.Smooth(teamMatches.Count(tm => tm.IsWin), teamMatches.Count, coefficients);
 
         return compositionWinRates;
     }
@@ -399,7 +406,8 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
             .DefaultIfEmpty(0)
             .Average();
 
-        var winRate = WinRateSmoothing.Smooth(wins, togetherMatches.Count, GlobalCoefficients.Default);
+        var coefficients = await coefficientsProvider.GetCoefficientsAsync(ct);
+        var winRate = WinRateSmoothing.Smooth(wins, togetherMatches.Count, coefficients);
 
         var synergyScore = CalculateSynergyScore(wins, togetherMatches.Count);
 
