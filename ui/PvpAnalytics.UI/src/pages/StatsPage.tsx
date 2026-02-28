@@ -13,7 +13,7 @@ import AnomalyBadge from '../components/AnomalyBadge/AnomalyBadge'
 import ForecastCard from '../components/ForecastCard/ForecastCard'
 import { getErrorStyles } from '../utils/themeColors'
 import { useStatsStore } from '../store/statsStore'
-import { detectWinRateAnomaly, generateForecast } from '../utils/statisticsUtils'
+import { detectWinRateAnomaly, generateForecast, smoothedWinRate, sampleSizeLabel } from '../utils/statisticsUtils'
 
 const StatsPage = () => {
   const [activeTopTab, setActiveTopTab] = useState('rating')
@@ -39,12 +39,16 @@ const StatsPage = () => {
 
   const stats = data
 
-  // Calculate win rate from matches
   const winRate = useMemo(() => {
     if (!stats) return 0
     const wins = stats.matches.filter((m) => m.result === 'Victory').length
     const total = stats.matches.length
-    return total > 0 ? Math.round((wins / total) * 100) : 0
+    return smoothedWinRate(wins, total)
+  }, [stats])
+
+  const matchSampleLabel = useMemo(() => {
+    if (!stats) return ''
+    return sampleSizeLabel(stats.matches.length)
   }, [stats])
 
   // Detect win rate anomaly
@@ -158,7 +162,7 @@ const StatsPage = () => {
           }
           trend={winRate >= 50 ? 'up' : 'down'}
           trendValue={winRate >= 50 ? 'Above 50%' : 'Below 50%'}
-          tooltip="Win rate calculated from all recorded matches. Shows percentage of matches won."
+          tooltip={`Bayesian-smoothed win rate (${matchSampleLabel}). Accounts for sample size to reduce noise from small match counts.`}
         />
         <MetricCard
           title="Total Matches"

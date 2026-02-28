@@ -36,7 +36,7 @@ public class OpponentScoutingController(IOpponentScoutingService service) : Cont
     [HttpGet("{playerId:long}/compositions")]
     public async Task<ActionResult> GetCompositions(long playerId, CancellationToken ct = default)
     {
-        var result = await service.GetPlayerCompositionsAsync(playerId, ct);
+        var result = await service.GetPlayerCompositionsAsync(playerId, null, ct);
         return Ok(result);
     }
 
@@ -44,7 +44,7 @@ public class OpponentScoutingController(IOpponentScoutingService service) : Cont
     [HttpGet("{playerId:long}/matchups")]
     public async Task<ActionResult> GetMatchups(long playerId, CancellationToken ct = default)
     {
-        var result = await service.GetPlayerMatchupsAsync(playerId, ct);
+        var result = await service.GetPlayerMatchupsAsync(playerId, null, ct);
         return Ok(result);
     }
 }

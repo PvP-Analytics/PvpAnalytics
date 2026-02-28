@@ -22,4 +22,13 @@ public class MatchResult
     public int RatingAfter { get; set; }
     public bool IsWinner { get; set; }
     public string? Spec { get; set; }
+
+    /// <summary>Sum of effective damage events for this player in this match</summary>
+    public int EffectiveDamageTotal { get; set; }
+
+    /// <summary>Sum of effective healing events for this player in this match</summary>
+    public int EffectiveHealingTotal { get; set; }
+
+    /// <summary>Crowd-control events per match as a proxy for Isolated Impact</summary>
+    public double CrowdControlScore { get; set; }
 }

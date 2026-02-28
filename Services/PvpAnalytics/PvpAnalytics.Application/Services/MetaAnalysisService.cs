@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Core.Enum;
 using PvpAnalytics.Infrastructure;
@@ -95,7 +96,7 @@ public class MetaAnalysisService(PvpAnalyticsDbContext dbContext) : IMetaAnalysi
                 Composition = g.Key,
                 TotalMatches = g.Count(),
                 Wins = g.Count(tc => tc.IsWinner),
-                WinRate = g.Any() ? Math.Round(g.Count(tc => tc.IsWinner) * 100.0 / g.Count(), 2) : 0,
+                WinRate = g.Any() ? WinRateSmoothing.Smooth(g.Count(tc => tc.IsWinner), g.Count(), GlobalCoefficients.Default) : 0,
                 Popularity = totalMatches > 0 ? Math.Round(g.Count() * 100.0 / totalMatches, 2) : 0,
                 AverageRating = Math.Round(g.Average(tc => tc.Rating), 0)
             })
@@ -163,7 +164,7 @@ public class MetaAnalysisService(PvpAnalyticsDbContext dbContext) : IMetaAnalysi
                     Date = date,
                     Matches = matches,
                     Popularity = totalMatches > 0 ? Math.Round(matches * 100.0 / totalMatches, 2) : 0,
-                    WinRate = matches > 0 ? Math.Round(wins * 100.0 / matches, 2) : 0
+                    WinRate = WinRateSmoothing.Smooth(wins, matches, GlobalCoefficients.Default)
                 };
             })
             .OrderBy(t => t.Date)

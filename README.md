@@ -31,9 +31,28 @@ PvpAnalytics is a platform that processes World of Warcraft combat log files to 
 - **Combat Log Parsing**: Automatically parse WoW combat log files and extract arena matches
 - **Player Management**: Store and query player information with automatic enrichment via WoW API
 - **Match Analytics**: Track arena matches with ratings, results, and detailed combat data
+- **Bayesian-Smoothed Win Rates**: All public win rate metrics use sample-size-aware Bayesian smoothing to prevent misleading statistics from small datasets
+- **Contextual Semantic Indices**: Effective Damage (vulnerability-window damage), Effective Healing (critical-threshold healing), and Crowd Control scoring
+- **Privacy-by-Design**: Opt-in public visibility with consent audit logging and JWT-based profile sharing
+- **Addon Config Integration**: One-click import for Gladius, Plater, WeakAuras, OmniBar configurations linked to specs/compositions
+- **Redis-Backed Coefficient Cache**: Background worker computes global statistical coefficients (prior, significance threshold) and caches in Redis
 - **RESTful APIs**: Full CRUD operations for all entities
 - **JWT Authentication**: Secure token-based authentication with refresh tokens
-- **Modern UI**: React + TypeScript dashboard for visualizing statistics
+- **Modern UI**: React + TypeScript dashboard with Bayesian-smoothed metrics and sample-size tooltips
+
+## Recent Changes (Refactoring)
+
+See `.refactoring/` folder for detailed phase-by-phase tracking. Summary:
+
+1. **Phase 1 — Bayesian Smoothing**: All 10 services computing raw win rates (`wins*100/total`) now use `WinRateSmoothing.Smooth()` from `PvpAnalytics.Core.Statistics`. A background worker (`PvpAnalytics.Worker`) computes `global_prior` and `C` from the database and caches them in Redis. Frontend displays smoothed rates with sample-size tooltips.
+
+2. **Phase 2 — Privacy-by-Design**: `PlayerProfile` entity with `PublicConsent` flag (default `false`). `ConsentAuditLog` records all consent changes. Community rankings filtered by consent. JWT-based profile sharing via `/api/profiles/{id}/share`.
+
+3. **Phase 3 — Contextual Indices**: `EffectiveDamage` and `EffectiveHealing` fields added to `CombatLogEntry` and `MatchResult`. Combat log ingestion computes effective metrics during parsing. DTOs extended with contextual fields.
+
+4. **Phase 4 — Addon Config Integration**: `AddonConfig` entity for storing import strings (Gladius, Plater, WeakAuras, OmniBar). CRUD API at `/api/addon-configs` with spec/composition associations.
+
+5. **Phase 5 — Streaming Ingestion**: Deferred. Architecture documented in `.refactoring/phase-5-streaming-ingestion.md`.
 
 ## Quick Start
 

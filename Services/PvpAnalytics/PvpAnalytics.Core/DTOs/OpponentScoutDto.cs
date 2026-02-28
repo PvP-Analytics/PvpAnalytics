@@ -39,8 +39,11 @@ public class PlaystylePattern
     public double AverageDamagePerMatch { get; set; }
     public double AverageHealingPerMatch { get; set; }
     public double AverageCCPerMatch { get; set; }
-    public string Style { get; set; } = string.Empty; // "Aggressive", "Defensive", "Balanced"
+    public string Style { get; set; } = string.Empty;
     public double AverageMatchDuration { get; set; }
+
+    public double AverageEffectiveDamage { get; set; }
+    public double AverageEffectiveHealing { get; set; }
 }
 
 public class ClassMatchup

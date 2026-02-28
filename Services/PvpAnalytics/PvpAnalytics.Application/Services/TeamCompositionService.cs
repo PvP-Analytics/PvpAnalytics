@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Core.Entities;
 using PvpAnalytics.Core.Repositories;
@@ -86,7 +87,7 @@ public class TeamCompositionService(
                     TotalMatches = g.Count(),
                     Wins = g.Count(td => td.IsWinner),
                     Losses = g.Count(td => !td.IsWinner),
-                    WinRate = g.Any() ? Math.Round(g.Count(td => td.IsWinner) * 100.0 / g.Count(), 2) : 0,
+                    WinRate = g.Any() ? WinRateSmoothing.Smooth(g.Count(td => td.IsWinner), g.Count(), GlobalCoefficients.Default) : 0,
                     AverageRating = Math.Round(g.Average(td => td.Rating), 0),
                     PeakRating = (int)Math.Round(g.Max(td => td.Rating), 0),
                     SynergyScore = CalculateSynergyScore(g.Count(td => td.IsWinner), g.Count()),
@@ -167,7 +168,7 @@ public class TeamCompositionService(
             Player2Name = player2.Name,
             MatchesTogether = togetherMatches.Count,
             WinsTogether = wins,
-            WinRateTogether = togetherMatches.Count > 0 ? Math.Round(wins * 100.0 / togetherMatches.Count, 2) : 0,
+            WinRateTogether = WinRateSmoothing.Smooth(wins, togetherMatches.Count, GlobalCoefficients.Default),
             AverageRatingTogether = Math.Round(avgRating, 0),
             SynergyScore = CalculateSynergyScore(wins, togetherMatches.Count)
         };

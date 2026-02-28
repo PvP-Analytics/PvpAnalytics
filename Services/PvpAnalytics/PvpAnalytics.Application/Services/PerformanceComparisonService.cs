@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Infrastructure;
 
@@ -110,7 +111,7 @@ public class PerformanceComparisonService(PvpAnalyticsDbContext dbContext) : IPe
 
     private static double CalculateWinRate(int wins, int totalMatches)
     {
-        return totalMatches > 0 ? Math.Round(wins * 100.0 / totalMatches, 2) : 0;
+        return WinRateSmoothing.Smooth(wins, totalMatches, GlobalCoefficients.Default);
     }
 
     private static double CalculateAverageDamage(List<Core.Entities.CombatLogEntry> logs)

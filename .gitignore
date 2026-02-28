@@ -13,3 +13,4 @@ dist/
 sonar-project.properties
 .cursor
 .sonarqube/
+.refactoring/

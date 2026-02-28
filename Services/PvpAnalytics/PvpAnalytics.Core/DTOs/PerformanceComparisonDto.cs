@@ -21,6 +21,9 @@ public class PlayerMetrics
     public int CurrentRating { get; set; }
     public int PeakRating { get; set; }
     public double AverageMatchDuration { get; set; }
+
+    public double AverageEffectiveDamage { get; set; }
+    public double AverageEffectiveHealing { get; set; }
 }
 
 public class TopPlayerMetrics

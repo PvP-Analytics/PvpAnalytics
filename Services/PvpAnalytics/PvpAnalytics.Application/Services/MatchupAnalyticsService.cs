@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Core.Enum;
 using PvpAnalytics.Infrastructure;
@@ -222,9 +223,12 @@ public class MatchupAnalyticsService(PvpAnalyticsDbContext dbContext) : IMatchup
         return teams.FirstOrDefault(t => TeamHasClass(t, className, spec));
     }
 
+    /// <summary>Returns smoothed win rate (0–100), or <see cref="double.NaN"/> when there is no data (totalMatches == 0).</summary>
     private static double CalculateWinRate(int wins, int totalMatches)
     {
-        return totalMatches > 0 ? Math.Round(wins * 100.0 / totalMatches, 2) : 0;
+        if (totalMatches == 0)
+            return double.NaN;
+        return WinRateSmoothing.Smooth(wins, totalMatches, GlobalCoefficients.Default);
     }
 
     private async Task<double> CalculateAverageMatchDurationAsync(List<long> matchIds, CancellationToken ct)
@@ -350,7 +354,7 @@ public class MatchupAnalyticsService(PvpAnalyticsDbContext dbContext) : IMatchup
                     OpponentSpec = g.Key.Spec,
                     Matches = g.Count(),
                     Wins = playerWon,
-                    WinRate = g.Any() ? Math.Round(playerWon * 100.0 / g.Count(), 2) : 0
+                    WinRate = WinRateSmoothing.Smooth(playerWon, g.Count(), GlobalCoefficients.Default)
                 };
             })
             .Where(m => m.Matches >= 3) // Minimum matches for meaningful data

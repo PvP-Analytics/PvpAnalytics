@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Core.Entities;
 using PvpAnalytics.Infrastructure;
@@ -191,7 +192,7 @@ public class SessionAnalysisService(PvpAnalyticsDbContext dbContext) : ISessionA
             MatchCount = matches.Count,
             Wins = wins,
             Losses = matches.Count - wins,
-            WinRate = Math.Round(wins * 100.0 / matches.Count, 2),
+            WinRate = WinRateSmoothing.Smooth(wins, matches.Count, GlobalCoefficients.Default),
             RatingStart = ratingStart,
             RatingEnd = ratingEnd,
             RatingChange = ratingEnd - ratingStart,

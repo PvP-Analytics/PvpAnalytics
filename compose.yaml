@@ -1,4 +1,4 @@
-﻿services:
+services:
   db:
     image: postgres:16
     restart: always
@@ -52,6 +52,17 @@
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   logging:
     image: loggingservice
@@ -173,9 +184,12 @@
       - LoggingService__GrpcEndpoint=http://logging:50051
       - LoggingService__ServiceName=PvpAnalytics
       - LoggingService__HeartbeatIntervalSeconds=30
+      - ConnectionStrings__Redis=redis:6379
       - EfMigrations__Skip=false
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       logging:
         condition: service_healthy
@@ -187,6 +201,21 @@
       timeout: 10s
       retries: 3
       start_period: 60s
+    restart: unless-stopped
+
+  worker:
+    image: pvpanalytics-worker
+    build:
+      context: .
+      dockerfile: Workers/PvpAnalytics.Worker/Dockerfile
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Username=${POSTGRES_USER?POSTGRES_USER not set};Password=${POSTGRES_PASSWORD?POSTGRES_PASSWORD not set};Database=${POSTGRES_DB?POSTGRES_DB not set}
+      - ConnectionStrings__Redis=redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   ui:
