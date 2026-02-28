@@ -89,7 +89,8 @@ get_highest_from_specs() {
         for dir in "$specs_dir"/*; do
             [ -d "$dir" ] || continue
             dirname=$(basename "$dir")
-            number=$(echo "$dirname" | grep -o '^[0-9]\+' || echo "0")
+            number=$(echo "$dirname" | grep -o '^[0-9]\+' || true)
+            number=${number:-0}
             number=$((10#$number))
             if [ "$number" -gt "$highest" ]; then
                 highest=$number

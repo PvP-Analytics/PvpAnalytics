@@ -106,6 +106,14 @@ if [[ ! -d "$FEATURE_DIR" ]]; then
     exit 1
 fi
 
+json_escape() {
+    local s=${1//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    printf '%s' "$s"
+}
+
 if [[ ! -f "$IMPL_PLAN" ]]; then
     echo "ERROR: plan.md not found in $FEATURE_DIR" >&2
     echo "Run /speckit.plan first to create the implementation plan." >&2
@@ -144,11 +152,24 @@ if $JSON_MODE; then
     if [[ ${#docs[@]} -eq 0 ]]; then
         json_docs="[]"
     else
-        json_docs=$(printf '"%s",' "${docs[@]}")
-        json_docs="[${json_docs%,}]"
+        json_docs="["
+
+        for idx in "${!docs[@]}"; do
+            doc=${docs[$idx]}
+            escaped_doc=$(json_escape "$doc")
+
+            if [[ $idx -gt 0 ]]; then
+                json_docs+=","
+            fi
+
+            json_docs+="\"$escaped_doc\""
+        done
+
+        json_docs+="]"
     fi
-    
-    printf '{"FEATURE_DIR":"%s","AVAILABLE_DOCS":%s}\n' "$FEATURE_DIR" "$json_docs"
+
+    escaped_feature_dir=$(json_escape "$FEATURE_DIR")
+    printf '{"FEATURE_DIR":"%s","AVAILABLE_DOCS":%s}\n' "$escaped_feature_dir" "$json_docs"
 else
     # Text output
     echo "FEATURE_DIR:$FEATURE_DIR"

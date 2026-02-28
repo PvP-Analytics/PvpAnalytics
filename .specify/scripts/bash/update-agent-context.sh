@@ -106,6 +106,24 @@ log_warning() {
     echo "WARNING: $1" >&2
 }
 
+is_agent_file_processed() {
+    local path="$1"
+    local processed
+
+    for processed in "${processed_agent_files[@]}"; do
+        if [[ "$processed" == "$path" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+mark_agent_file_processed() {
+    local path="$1"
+    processed_agent_files+=("$path")
+}
+
 # Cleanup function for temporary files
 cleanup() {
     local exit_code=$?
@@ -670,84 +688,101 @@ update_specific_agent() {
 
 update_all_existing_agents() {
     local found_agent=false
+    processed_agent_files=()
     
     # Check each possible agent file and update if it exists
-    if [[ -f "$CLAUDE_FILE" ]]; then
+    if [[ -f "$CLAUDE_FILE" ]] && ! is_agent_file_processed "$CLAUDE_FILE"; then
         update_agent_file "$CLAUDE_FILE" "Claude Code"
+        mark_agent_file_processed "$CLAUDE_FILE"
         found_agent=true
     fi
     
-    if [[ -f "$GEMINI_FILE" ]]; then
+    if [[ -f "$GEMINI_FILE" ]] && ! is_agent_file_processed "$GEMINI_FILE"; then
         update_agent_file "$GEMINI_FILE" "Gemini CLI"
+        mark_agent_file_processed "$GEMINI_FILE"
         found_agent=true
     fi
     
-    if [[ -f "$COPILOT_FILE" ]]; then
+    if [[ -f "$COPILOT_FILE" ]] && ! is_agent_file_processed "$COPILOT_FILE"; then
         update_agent_file "$COPILOT_FILE" "GitHub Copilot"
+        mark_agent_file_processed "$COPILOT_FILE"
         found_agent=true
     fi
     
-    if [[ -f "$CURSOR_FILE" ]]; then
+    if [[ -f "$CURSOR_FILE" ]] && ! is_agent_file_processed "$CURSOR_FILE"; then
         update_agent_file "$CURSOR_FILE" "Cursor IDE"
+        mark_agent_file_processed "$CURSOR_FILE"
         found_agent=true
     fi
     
-    if [[ -f "$QWEN_FILE" ]]; then
+    if [[ -f "$QWEN_FILE" ]] && ! is_agent_file_processed "$QWEN_FILE"; then
         update_agent_file "$QWEN_FILE" "Qwen Code"
+        mark_agent_file_processed "$QWEN_FILE"
         found_agent=true
     fi
     
-    if [[ -f "$AGENTS_FILE" ]]; then
+    if [[ -f "$AGENTS_FILE" ]] && ! is_agent_file_processed "$AGENTS_FILE"; then
         update_agent_file "$AGENTS_FILE" "Codex/opencode"
+        mark_agent_file_processed "$AGENTS_FILE"
         found_agent=true
     fi
     
-    if [[ -f "$WINDSURF_FILE" ]]; then
+    if [[ -f "$WINDSURF_FILE" ]] && ! is_agent_file_processed "$WINDSURF_FILE"; then
         update_agent_file "$WINDSURF_FILE" "Windsurf"
+        mark_agent_file_processed "$WINDSURF_FILE"
         found_agent=true
     fi
     
-    if [[ -f "$KILOCODE_FILE" ]]; then
+    if [[ -f "$KILOCODE_FILE" ]] && ! is_agent_file_processed "$KILOCODE_FILE"; then
         update_agent_file "$KILOCODE_FILE" "Kilo Code"
+        mark_agent_file_processed "$KILOCODE_FILE"
         found_agent=true
     fi
 
-    if [[ -f "$AUGGIE_FILE" ]]; then
+    if [[ -f "$AUGGIE_FILE" ]] && ! is_agent_file_processed "$AUGGIE_FILE"; then
         update_agent_file "$AUGGIE_FILE" "Auggie CLI"
+        mark_agent_file_processed "$AUGGIE_FILE"
         found_agent=true
     fi
     
-    if [[ -f "$ROO_FILE" ]]; then
+    if [[ -f "$ROO_FILE" ]] && ! is_agent_file_processed "$ROO_FILE"; then
         update_agent_file "$ROO_FILE" "Roo Code"
+        mark_agent_file_processed "$ROO_FILE"
         found_agent=true
     fi
 
-    if [[ -f "$CODEBUDDY_FILE" ]]; then
+    if [[ -f "$CODEBUDDY_FILE" ]] && ! is_agent_file_processed "$CODEBUDDY_FILE"; then
         update_agent_file "$CODEBUDDY_FILE" "CodeBuddy CLI"
+        mark_agent_file_processed "$CODEBUDDY_FILE"
         found_agent=true
     fi
 
-    if [[ -f "$SHAI_FILE" ]]; then
+    if [[ -f "$SHAI_FILE" ]] && ! is_agent_file_processed "$SHAI_FILE"; then
         update_agent_file "$SHAI_FILE" "SHAI"
+        mark_agent_file_processed "$SHAI_FILE"
         found_agent=true
     fi
 
-    if [[ -f "$QODER_FILE" ]]; then
+    if [[ -f "$QODER_FILE" ]] && ! is_agent_file_processed "$QODER_FILE"; then
         update_agent_file "$QODER_FILE" "Qoder CLI"
+        mark_agent_file_processed "$QODER_FILE"
         found_agent=true
     fi
 
-    if [[ -f "$Q_FILE" ]]; then
+    if [[ -f "$Q_FILE" ]] && ! is_agent_file_processed "$Q_FILE"; then
         update_agent_file "$Q_FILE" "Amazon Q Developer CLI"
+        mark_agent_file_processed "$Q_FILE"
         found_agent=true
     fi
 
-    if [[ -f "$AGY_FILE" ]]; then
+    if [[ -f "$AGY_FILE" ]] && ! is_agent_file_processed "$AGY_FILE"; then
         update_agent_file "$AGY_FILE" "Antigravity"
+        mark_agent_file_processed "$AGY_FILE"
         found_agent=true
     fi
-    if [[ -f "$BOB_FILE" ]]; then
+    if [[ -f "$BOB_FILE" ]] && ! is_agent_file_processed "$BOB_FILE"; then
         update_agent_file "$BOB_FILE" "IBM Bob"
+        mark_agent_file_processed "$BOB_FILE"
         found_agent=true
     fi
     
