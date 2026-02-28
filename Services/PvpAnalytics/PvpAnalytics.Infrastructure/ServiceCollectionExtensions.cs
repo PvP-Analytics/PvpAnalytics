@@ -2,8 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.Repositories;
+using PvpAnalytics.Infrastructure.Cache;
 using PvpAnalytics.Infrastructure.Repositories;
+using StackExchange.Redis;
 
 namespace PvpAnalytics.Infrastructure;
 
@@ -32,11 +36,22 @@ public static class ServiceCollectionExtensions
                 options.UseNpgsql(connectionString);
             }
 
-            // Log the pending model changes warning instead of throwing
             options.ConfigureWarnings(warnings =>
                 warnings.Log(RelationalEventId.PendingModelChangesWarning));
         });
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+
+        var redisConnection = config.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(redisConnection))
+        {
+            services.AddSingleton<IConnectionMultiplexer>(_ =>
+                ConnectionMultiplexer.Connect(redisConnection));
+            services.AddSingleton<IGlobalCoefficientsProvider, RedisGlobalCoefficientsProvider>();
+        }
+        else
+        {
+            services.AddSingleton<IGlobalCoefficientsProvider, FallbackGlobalCoefficientsProvider>();
+        }
 
         return services;
     }

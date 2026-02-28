@@ -19,4 +19,10 @@ public class CombatLogEntry
     public int DamageDone { get; set; }
     public int HealingDone { get; set; }
     public string CrowdControl { get; set; } = string.Empty;
+
+    /// <summary>Damage dealt during vulnerability windows (kills or forced defensives)</summary>
+    public int EffectiveDamage { get; set; }
+
+    /// <summary>Healing on targets below survival threshold</summary>
+    public int EffectiveHealing { get; set; }
 }

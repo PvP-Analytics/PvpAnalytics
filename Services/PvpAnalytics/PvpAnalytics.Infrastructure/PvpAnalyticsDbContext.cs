@@ -20,6 +20,9 @@ public class PvpAnalyticsDbContext(DbContextOptions<PvpAnalyticsDbContext> optio
     public DbSet<CommunityRanking> CommunityRankings { get; set; }
     public DbSet<MatchDiscussionThread> MatchDiscussionThreads { get; set; }
     public DbSet<MatchDiscussionPost> MatchDiscussionPosts { get; set; }
+    public DbSet<PlayerProfile> PlayerProfiles { get; set; }
+    public DbSet<ConsentAuditLog> ConsentAuditLogs { get; set; }
+    public DbSet<AddonConfig> AddonConfigs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -167,5 +170,39 @@ public class PvpAnalyticsDbContext(DbContextOptions<PvpAnalyticsDbContext> optio
 
         modelBuilder.Entity<MatchDiscussionPost>()
             .HasIndex(dp => dp.ThreadId);
+
+        modelBuilder.Entity<PlayerProfile>()
+            .HasOne(pp => pp.Player)
+            .WithMany()
+            .HasForeignKey(pp => pp.PlayerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PlayerProfile>()
+            .HasIndex(pp => pp.PlayerId)
+            .IsUnique();
+
+        modelBuilder.Entity<PlayerProfile>()
+            .HasIndex(pp => pp.LinkedUserId);
+
+        modelBuilder.Entity<PlayerProfile>()
+            .HasIndex(pp => pp.PublicConsent);
+
+        modelBuilder.Entity<ConsentAuditLog>()
+            .HasOne(ca => ca.Profile)
+            .WithMany()
+            .HasForeignKey(ca => ca.PlayerProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ConsentAuditLog>()
+            .HasIndex(ca => ca.PlayerProfileId);
+
+        modelBuilder.Entity<AddonConfig>()
+            .HasIndex(ac => ac.AddonType);
+
+        modelBuilder.Entity<AddonConfig>()
+            .HasIndex(ac => ac.AssociatedSpec);
+
+        modelBuilder.Entity<AddonConfig>()
+            .HasIndex(ac => ac.AssociatedComposition);
     }
 }

@@ -40,6 +40,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IHighlightsService, HighlightsService>();
         services.AddScoped<ICommunityRankingService, CommunityRankingService>();
         services.AddScoped<IDiscussionService, DiscussionService>();
+        services.AddScoped<IProfileSharingService, ProfileSharingService>();
+        services.AddScoped<IAddonConfigService, AddonConfigService>();
         
         // Configure WoW API with validation
         // The [Required] attributes on WowApiOptions handle validation via ValidateDataAnnotations()

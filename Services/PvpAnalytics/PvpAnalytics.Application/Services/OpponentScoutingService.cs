@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Core.Entities;
 using PvpAnalytics.Core.Repositories;
@@ -16,6 +17,7 @@ public interface IOpponentScoutingService
 
 public class OpponentScoutingService(
     IRepository<Player> playerRepo,
+    IGlobalCoefficientsProvider coefficientsProvider,
     PvpAnalyticsDbContext dbContext) : IOpponentScoutingService
 {
     public async Task<OpponentScoutDto?> GetScoutingDataAsync(long playerId, CancellationToken ct = default)
@@ -39,10 +41,11 @@ public class OpponentScoutingService(
         if (matchResults.Count == 0)
             return scout;
 
+        var coefficients = await coefficientsProvider.GetCoefficientsAsync(ct);
         var totalMatches = matchResults.Count;
         var wins = matchResults.Count(mr => mr.IsWinner);
         scout.TotalMatches = totalMatches;
-        scout.WinRate = Math.Round(wins * 100.0 / totalMatches, 2);
+        scout.WinRate = WinRateSmoothing.Smooth(wins, totalMatches, coefficients);
 
         var latestResult = matchResults.OrderByDescending(mr => mr.Match.CreatedOn).First();
         scout.CurrentRating = latestResult.RatingAfter;
@@ -58,7 +61,7 @@ public class OpponentScoutingService(
                 MapName = g.Key,
                 Matches = g.Count(),
                 Wins = g.Count(m => m.IsWinner),
-                WinRate = g.Any() ? Math.Round(g.Count(m => m.IsWinner) * 100.0 / g.Count(), 2) : 0
+                WinRate = WinRateSmoothing.Smooth(g.Count(m => m.IsWinner), g.Count(), coefficients)
             })
             .OrderByDescending(m => m.Matches)
             .Take(10)
@@ -82,13 +85,18 @@ public class OpponentScoutingService(
             : 0;
         var avgDuration = matches.Count != 0 ? matches.Average(m => (double)m.Duration) : 0;
 
+        var avgEffDamage = combatLogs.Count != 0 ? combatLogs.Average(c => (double)c.EffectiveDamage) : 0;
+        var avgEffHealing = combatLogs.Count != 0 ? combatLogs.Average(c => (double)c.EffectiveHealing) : 0;
+
         scout.Playstyle = new PlaystylePattern
         {
             AverageDamagePerMatch = Math.Round(avgDamage, 2),
             AverageHealingPerMatch = Math.Round(avgHealing, 2),
             AverageCCPerMatch = Math.Round(avgCc, 2),
             AverageMatchDuration = Math.Round(avgDuration, 2),
-            Style = DeterminePlaystyle(avgDamage, avgHealing)
+            Style = DeterminePlaystyle(avgDamage, avgHealing),
+            AverageEffectiveDamage = Math.Round(avgEffDamage, 2),
+            AverageEffectiveHealing = Math.Round(avgEffHealing, 2)
         };
 
         scout.ClassMatchups = await GetPlayerMatchupsAsync(playerId, ct);
@@ -167,7 +175,7 @@ public class OpponentScoutingService(
                 Composition = g.Key,
                 Matches = g.Count(),
                 Wins = g.Count(tc => tc.IsWinner),
-                WinRate = g.Any() ? Math.Round(g.Count(tc => tc.IsWinner) * 100.0 / g.Count(), 2) : 0,
+                WinRate = WinRateSmoothing.Smooth(g.Count(tc => tc.IsWinner), g.Count(), GlobalCoefficients.Default),
                 AverageRating = Math.Round(g.Average(tc => tc.Rating), 0)
             })
             .OrderByDescending(c => c.Matches)
@@ -212,7 +220,7 @@ public class OpponentScoutingService(
                 OpponentSpec = g.Key.Spec,
                 Matches = g.Count(),
                 Wins = g.Count(mr => !mr.IsWinner), // Opponent lost = player won
-                WinRate = Math.Round(g.Count(mr => !mr.IsWinner) * 100.0 / g.Count(), 2)
+                WinRate = WinRateSmoothing.Smooth(g.Count(mr => !mr.IsWinner), g.Count(), GlobalCoefficients.Default)
             })
             .OrderByDescending(m => m.Matches)
             .Take(20)

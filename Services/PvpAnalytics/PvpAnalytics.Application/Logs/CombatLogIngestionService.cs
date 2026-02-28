@@ -206,16 +206,24 @@ public class CombatLogIngestionService(
                 ? tgt
                 : null;
 
+            var damage = parsed.Damage ?? 0;
+            var healing = parsed.Healing ?? 0;
+            var isCooldown = ImportantAbilities.IsCooldownOrDefensive(parsed.SpellName ?? string.Empty);
+            var effectiveDamage = isCooldown ? 0 : damage;
+            var effectiveHealing = healing;
+
             state.BufferedEntries.Add(new CombatLogEntry
             {
                 Timestamp = parsed.Timestamp,
                 SourcePlayerId = source.Id,
                 TargetPlayerId = target?.Id,
                 Ability = parsed.SpellName ?? parsed.EventType,
-                DamageDone = parsed.Damage ?? 0,
-                HealingDone = parsed.Healing ?? 0,
+                DamageDone = damage,
+                HealingDone = healing,
                 CrowdControl = string.Empty,
-                SourcePlayer = source
+                SourcePlayer = source,
+                EffectiveDamage = effectiveDamage,
+                EffectiveHealing = effectiveHealing
             });
         }
 

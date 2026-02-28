@@ -1,6 +1,35 @@
 /**
- * Statistical analysis utilities for anomaly detection and forecasting
+ * Statistical analysis utilities for anomaly detection, forecasting,
+ * and Bayesian smoothing.
  */
+
+const DEFAULT_GLOBAL_PRIOR = 0.5
+const DEFAULT_SIGNIFICANCE_THRESHOLD = 20
+
+/**
+ * Bayesian-smoothed win rate (returns 0–100 percentage).
+ * Formula: (wins + C * globalPrior) / (totalMatches + C) * 100
+ */
+export function smoothedWinRate(
+  wins: number,
+  totalMatches: number,
+  globalPrior: number = DEFAULT_GLOBAL_PRIOR,
+  c: number = DEFAULT_SIGNIFICANCE_THRESHOLD,
+): number {
+  if (totalMatches <= 0) return Math.round(globalPrior * 100 * 100) / 100
+  const smoothed = (wins + c * globalPrior) / (totalMatches + c)
+  return Math.round(smoothed * 100 * 100) / 100
+}
+
+/**
+ * Returns a human-readable label for sample size confidence.
+ */
+export function sampleSizeLabel(totalMatches: number): string {
+  if (totalMatches < 10) return 'Very small sample'
+  if (totalMatches < 30) return 'Small sample'
+  if (totalMatches < 100) return 'Moderate sample'
+  return 'Large sample'
+}
 
 export interface AnomalyResult<T> {
   value: T

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Infrastructure;
 
@@ -9,7 +10,9 @@ public interface ITeamLeaderboardService
     Task<TeamLeaderboardDto> GetLeaderboardAsync(string bracket, string? region = null, int? limit = 100, CancellationToken ct = default);
 }
 
-public class TeamLeaderboardService(PvpAnalyticsDbContext dbContext) : ITeamLeaderboardService
+public class TeamLeaderboardService(
+    PvpAnalyticsDbContext dbContext,
+    IGlobalCoefficientsProvider coefficientsProvider) : ITeamLeaderboardService
 {
     public async Task<TeamLeaderboardDto> GetLeaderboardAsync(string bracket, string? region = null, int? limit = 100, CancellationToken ct = default)
     {
@@ -50,6 +53,7 @@ public class TeamLeaderboardService(PvpAnalyticsDbContext dbContext) : ITeamLead
         
         var teamStats = teamStatsList.ToDictionary(x => x.TeamId);
 
+        var coefficients = await coefficientsProvider.GetCoefficientsAsync(ct);
         var entries = new List<TeamLeaderboardEntryDto>();
 
         foreach (var team in teams)
@@ -58,7 +62,7 @@ public class TeamLeaderboardService(PvpAnalyticsDbContext dbContext) : ITeamLead
             var totalMatches = stats?.TotalMatches ?? 0;
             var wins = stats?.Wins ?? 0;
             var losses = totalMatches - wins;
-            var winRate = totalMatches > 0 ? Math.Round(wins * 100.0 / totalMatches, 2) : 0.0;
+            var winRate = WinRateSmoothing.Smooth(wins, totalMatches, coefficients);
             var lastMatchDate = stats?.LastMatchDate ?? team.CreatedAt;
 
             entries.Add(new TeamLeaderboardEntryDto

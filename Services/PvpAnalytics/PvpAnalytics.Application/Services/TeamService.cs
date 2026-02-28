@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Core.Entities;
 using PvpAnalytics.Core.Repositories;
@@ -212,7 +213,7 @@ public class TeamService(
         var totalMatches = teamMatches.Count;
         var wins = teamMatches.Count(tm => tm.IsWin);
         var losses = totalMatches - wins;
-        var winRate = totalMatches > 0 ? Math.Round(wins * 100.0 / totalMatches, 2) : 0.0;
+        var winRate = WinRateSmoothing.Smooth(wins, totalMatches, GlobalCoefficients.Default);
 
         return new TeamDto
         {

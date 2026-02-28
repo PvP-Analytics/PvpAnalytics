@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Core.Entities;
 using PvpAnalytics.Infrastructure;
@@ -195,9 +196,7 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
         }
 
         var avgRating = ratingCount > 0 ? totalRating / ratingCount : 0.0;
-        var winRate = togetherMatches.Count > 0
-            ? Math.Round(wins * 100.0 / togetherMatches.Count, 2)
-            : 0.0;
+        var winRate = WinRateSmoothing.Smooth(wins, togetherMatches.Count, GlobalCoefficients.Default);
 
         return new MatchStatsTogether
         {
@@ -297,7 +296,7 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
                     if (total == 0)
                         return 0.0;
                     var wins = g.Count(tm => tm.IsWin);
-                    return Math.Round(wins * 100.0 / total, 2);
+                    return WinRateSmoothing.Smooth(wins, total, GlobalCoefficients.Default);
                 }
             );
     }
@@ -312,9 +311,7 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
 
         var classes = team.Members.Select(m => m.Player.Class).OrderBy(c => c).ToList();
         var composition = string.Join("-", classes);
-        compositionWinRates[composition] = teamMatches.Count > 0
-            ? Math.Round(teamMatches.Count(tm => tm.IsWin) * 100.0 / teamMatches.Count, 2)
-            : 0.0;
+        compositionWinRates[composition] = WinRateSmoothing.Smooth(teamMatches.Count(tm => tm.IsWin), teamMatches.Count, GlobalCoefficients.Default);
 
         return compositionWinRates;
     }
@@ -402,9 +399,7 @@ public class TeamSynergyService(PvpAnalyticsDbContext dbContext) : ITeamSynergyS
             .DefaultIfEmpty(0)
             .Average();
 
-        var winRate = togetherMatches.Count > 0
-            ? Math.Round(wins * 100.0 / togetherMatches.Count, 2)
-            : 0.0;
+        var winRate = WinRateSmoothing.Smooth(wins, togetherMatches.Count, GlobalCoefficients.Default);
 
         var synergyScore = CalculateSynergyScore(wins, togetherMatches.Count);
 

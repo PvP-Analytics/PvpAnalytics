@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PvpAnalytics.Core.Statistics;
 using PvpAnalytics.Core.DTOs;
 using PvpAnalytics.Core.Entities;
 using PvpAnalytics.Core.Repositories;
@@ -144,7 +145,7 @@ public class RivalService(
 
         var wins = CountWins(matchesWithBoth, userPlayerIds, matchData);
         var losses = matchesPlayed - wins;
-        var winRate = Math.Round(wins * 100.0 / matchesPlayed, 2);
+        var winRate = WinRateSmoothing.Smooth(wins, matchesPlayed, GlobalCoefficients.Default);
 
         return new RivalMatchStats
         {

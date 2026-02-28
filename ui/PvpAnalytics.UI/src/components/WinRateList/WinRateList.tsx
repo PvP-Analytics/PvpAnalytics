@@ -1,3 +1,4 @@
+import Tooltip from '../Tooltip/Tooltip'
 import type { WinRateEntry } from '../../types/stats'
 
 interface WinRateListProps {
@@ -7,7 +8,11 @@ interface WinRateListProps {
 
 const WinRateList = ({ title, entries }: WinRateListProps) => (
   <div className="flex flex-col gap-3">
-    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">{title}</h3>
+    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+      <Tooltip content="Win rates are Bayesian-smoothed to account for sample size. Small samples are pulled toward the global average.">
+        {title}
+      </Tooltip>
+    </h3>
     <ul className="flex flex-col gap-3">
       {entries.map((entry) => (
         <li
