@@ -52,7 +52,7 @@ See `.refactoring/` folder for detailed phase-by-phase tracking. Summary:
 
 4. **Phase 4 — Addon Config Integration**: `AddonConfig` entity for storing import strings (Gladius, Plater, WeakAuras, OmniBar). CRUD API at `/api/addon-configs` with spec/composition associations.
 
-5. **Phase 5 — Streaming Ingestion**: Deferred. Architecture documented in `.refactoring/phase-5-streaming-ingestion.md`.
+5. **Phase 5 — Streaming Ingestion**: gRPC Ingress accepts Protobuf match payloads and publishes to Kafka. A .NET Worker consumes and persists to PostgreSQL (idempotent by `match_dedup_key`). Optional .NET daemon parses logs locally and sends to Ingress. Feature flags: `Ingestion:StreamingEnabled` (API), `Ingestion:StreamingConsumerEnabled` (Worker). See `.refactoring/phase-5-streaming-ingestion.md` and `Clients/PvpAnalytics.IngestionDaemon/README.md`.
 
 ## Quick Start
 
@@ -68,6 +68,8 @@ See `.refactoring/` folder for detailed phase-by-phase tracking. Summary:
    POSTGRES_PAYMENT_DB=[YOUR_POSTGRES_PAYMENT_DB]
    WowApi__ClientId=[YOUR_WOW_API_CLIENT_ID]
    WowApi__ClientSecret=[YOUR_WOW_API_CLIENT_SECRET]
+   # Optional: Phase 5 streaming ingestion (Kafka + feature flags)
+   # Copy from .env.example: Kafka__BootstrapServers, Ingestion__StreamingEnabled, Ingestion__StreamingConsumerEnabled
    ```
 
 2. Start all services:

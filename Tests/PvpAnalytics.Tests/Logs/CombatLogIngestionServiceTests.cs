@@ -25,9 +25,10 @@ public class CombatLogIngestionServiceTests
         var matchRepo = new InMemoryRepository<Match>(m => m.Id);
         var resultRepo = new InMemoryRepository<MatchResult>(r => r.Id);
         var entryRepo = new InMemoryRepository<CombatLogEntry>(e => e.Id);
+        var matchPersistService = new MatchPersistService(matchRepo, resultRepo, entryRepo, NullLogger<MatchPersistService>.Instance);
         var wowApiService = new MockWowApiService();
 
-        var sut = new CombatLogIngestionService(playerRepo, matchRepo, resultRepo, entryRepo, wowApiService, NullLogger<CombatLogIngestionService>.Instance);
+        var sut = new CombatLogIngestionService(playerRepo, matchPersistService, wowApiService, NullLogger<CombatLogIngestionService>.Instance);
 
         const string log = """
                            # Nicked header
@@ -59,9 +60,10 @@ public class CombatLogIngestionServiceTests
         var matchRepo = new InMemoryRepository<Match>(m => m.Id);
         var resultRepo = new InMemoryRepository<MatchResult>(r => r.Id);
         var entryRepo = new InMemoryRepository<CombatLogEntry>(e => e.Id);
+        var matchPersistService = new MatchPersistService(matchRepo, resultRepo, entryRepo, NullLogger<MatchPersistService>.Instance);
         var wowApiService = new MockWowApiService();
 
-        var sut = new CombatLogIngestionService(playerRepo, matchRepo, resultRepo, entryRepo, wowApiService, NullLogger<CombatLogIngestionService>.Instance);
+        var sut = new CombatLogIngestionService(playerRepo, matchPersistService, wowApiService, NullLogger<CombatLogIngestionService>.Instance);
 
         const string log = "1/2/2024 19:10:03.100  ZONE_CHANGE,1,Elwynn Forest";
 

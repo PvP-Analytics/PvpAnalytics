@@ -7,9 +7,15 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="Confluent.Kafka" Version="2.6.3" />
       <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
       <PackageReference Include="Npgsql" Version="9.0.3" />
       <PackageReference Include="StackExchange.Redis" Version="2.8.41" />
+    </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\..\Services\PvpAnalytics\PvpAnalytics.Application\PvpAnalytics.Application.csproj" />
+      <ProjectReference Include="..\..\Services\PvpAnalytics\PvpAnalytics.Infrastructure\PvpAnalytics.Infrastructure.csproj" />
+      <ProjectReference Include="..\..\Shared\PvpAnalytics.Shared\PvpAnalytics.Shared.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,8 +1,8 @@
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
 EXPOSE 8083
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 COPY ["Services/LoggingService/LoggingService.Api/LoggingService.Api.csproj", "Services/LoggingService/LoggingService.Api/"]
 COPY ["Services/LoggingService/LoggingService.Application/LoggingService.Application.csproj", "Services/LoggingService/LoggingService.Application/"]

@@ -78,6 +78,7 @@ const Navigation = () => {
         {path: '/matches', label: 'Matches', icon: '⚔️'},
         {path: '/teams', label: 'Teams', icon: '👫'},
         {path: '/leaderboards', label: 'Leaderboards', icon: '🏆'},
+        {path: '/builds', label: 'Builds', icon: '📦'},
         {path: '/highlights', label: 'Highlights', icon: '⭐'},
         {path: '/discover', label: 'Discover', icon: '🔍'},
         {path: '/favorites', label: 'Favorites', icon: '⭐'},

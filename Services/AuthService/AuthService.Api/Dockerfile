@@ -1,9 +1,9 @@
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8081
 EXPOSE 8081
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 # Copy project files for restore layering (maintaining directory structure)

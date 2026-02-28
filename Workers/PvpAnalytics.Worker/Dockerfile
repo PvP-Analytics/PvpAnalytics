@@ -1,13 +1,19 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
+# Copy csproj files for restore layering (Worker + referenced projects)
 COPY Workers/PvpAnalytics.Worker/PvpAnalytics.Worker.csproj Workers/PvpAnalytics.Worker/
+COPY Services/PvpAnalytics/PvpAnalytics.Application/PvpAnalytics.Application.csproj Services/PvpAnalytics/PvpAnalytics.Application/
+COPY Services/PvpAnalytics/PvpAnalytics.Infrastructure/PvpAnalytics.Infrastructure.csproj Services/PvpAnalytics/PvpAnalytics.Infrastructure/
+COPY Services/PvpAnalytics/PvpAnalytics.Core/PvpAnalytics.Core.csproj Services/PvpAnalytics/PvpAnalytics.Core/
+COPY Shared/PvpAnalytics.Shared/PvpAnalytics.Shared.csproj Shared/PvpAnalytics.Shared/
+
 RUN dotnet restore Workers/PvpAnalytics.Worker/PvpAnalytics.Worker.csproj
 
-COPY Workers/PvpAnalytics.Worker/ Workers/PvpAnalytics.Worker/
+COPY . .
 RUN dotnet publish Workers/PvpAnalytics.Worker/PvpAnalytics.Worker.csproj -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 COPY --from=build /app/publish .
 

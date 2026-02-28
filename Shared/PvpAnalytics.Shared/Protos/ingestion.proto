@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "PvpAnalytics.Shared.Protos.Ingestion";
+
+package PvpAnalytics.Shared.Ingestion;
+
+// Streaming ingestion: one message = one match (metadata + combat entries).
+// Idempotency: consumer uses match_dedup_key (or hash of arena_match_id + start_utc) to skip duplicates.
+service IngestionService {
+  // Unary: submit a single match payload (daemon sends one match at a time).
+  rpc SubmitMatch (MatchPayload) returns (SubmitResult);
+  // Server streaming not required for first iteration; client can call SubmitMatch in a loop.
+}
+
+message MatchPayload {
+  // Idempotency: same key on replay => consumer skips duplicate. Client should set to hash(arena_match_id|start_utc|participants).
+  string match_dedup_key = 1;
+  // Audit / feature flag (e.g. "daemon", "1.0").
+  string source = 2;
+  string version = 3;
+
+  string arena_match_id = 4;
+  google.protobuf.Timestamp start_utc = 5;
+  google.protobuf.Timestamp end_utc = 6;
+  string map_name = 7;
+  // Arena zone: use ArenaZone enum value (e.g. 2759 = BloodRing).
+  int32 arena_zone = 8;
+  // GameMode: 0=2v2, 1=3v3, 2=Skirmish, 3=Rbg, 4=Shuffle.
+  int32 game_mode = 9;
+  // Participant player keys (e.g. "Name-Realm") for hash and match results.
+  repeated string participant_keys = 10;
+
+  repeated CombatEntryProto entries = 11;
+}
+
+message CombatEntryProto {
+  google.protobuf.Timestamp timestamp = 1;
+  string source_name = 2;
+  string target_name = 3;
+  string ability = 4;
+  int32 damage_done = 5;
+  int32 healing_done = 6;
+  int32 effective_damage = 7;
+  int32 effective_healing = 8;
+  string crowd_control = 9;
+}
+
+message SubmitResult {
+  bool accepted = 1;
+  string message = 2;
+  // If accepted, server-assigned correlation id for tracing.
+  string correlation_id = 3;
+}

@@ -9,14 +9,26 @@ using PvpAnalytics.Shared.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(options =>
+    options.ConfigureEndpointDefaults(lo => lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2));
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
-builder.Services.AddHealthChecks();
+builder.Services.Configure<PvpAnalytics.Core.Configuration.KafkaOptions>(
+    builder.Configuration.GetSection(PvpAnalytics.Core.Configuration.KafkaOptions.SectionName));
+builder.Services.Configure<PvpAnalytics.Core.Configuration.IngestionOptions>(
+    builder.Configuration.GetSection(PvpAnalytics.Core.Configuration.IngestionOptions.SectionName));
+
+builder.Services.AddHealthChecks()
+    .AddKafkaHealthCheck(builder.Configuration);
+
+builder.Services.AddSingleton<PvpAnalytics.Api.Services.IIngestionPublisher, PvpAnalytics.Api.Services.KafkaIngestionPublisher>();
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddGrpc();
 
 // JWT Configuration and Security
 // 
@@ -140,6 +152,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapGrpcService<PvpAnalytics.Api.Controllers.IngestionGrpcService>();
 
 app.MapHealthChecks("/health");
 
