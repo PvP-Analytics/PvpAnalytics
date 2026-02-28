@@ -135,20 +135,26 @@ get_feature_paths() {
 
     # Use prefix-based lookup to support multiple branches per spec
     local feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch")
+    local feature_spec="$feature_dir/spec.md"
+    local impl_plan="$feature_dir/plan.md"
+    local tasks="$feature_dir/tasks.md"
+    local research="$feature_dir/research.md"
+    local data_model="$feature_dir/data-model.md"
+    local quickstart="$feature_dir/quickstart.md"
+    local contracts_dir="$feature_dir/contracts"
 
-    cat <<EOF
-REPO_ROOT='$repo_root'
-CURRENT_BRANCH='$current_branch'
-HAS_GIT='$has_git_repo'
-FEATURE_DIR='$feature_dir'
-FEATURE_SPEC='$feature_dir/spec.md'
-IMPL_PLAN='$feature_dir/plan.md'
-TASKS='$feature_dir/tasks.md'
-RESEARCH='$feature_dir/research.md'
-DATA_MODEL='$feature_dir/data-model.md'
-QUICKSTART='$feature_dir/quickstart.md'
-CONTRACTS_DIR='$feature_dir/contracts'
-EOF
+    # Emit shell-safe assignments using printf %q (handles single quotes, spaces, etc.)
+    printf 'REPO_ROOT=%q\n' "$repo_root"
+    printf 'CURRENT_BRANCH=%q\n' "$current_branch"
+    printf 'HAS_GIT=%q\n' "$has_git_repo"
+    printf 'FEATURE_DIR=%q\n' "$feature_dir"
+    printf 'FEATURE_SPEC=%q\n' "$feature_spec"
+    printf 'IMPL_PLAN=%q\n' "$impl_plan"
+    printf 'TASKS=%q\n' "$tasks"
+    printf 'RESEARCH=%q\n' "$research"
+    printf 'DATA_MODEL=%q\n' "$data_model"
+    printf 'QUICKSTART=%q\n' "$quickstart"
+    printf 'CONTRACTS_DIR=%q\n' "$contracts_dir"
 }
 
 check_file() { [[ -f "$1" ]] && echo "  ✓ $2" || echo "  ✗ $2"; }

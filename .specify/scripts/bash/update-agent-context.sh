@@ -124,6 +124,14 @@ mark_agent_file_processed() {
     processed_agent_files+=("$path")
 }
 
+# Escape string for sed replacement (s|pat|REPLACEMENT|): \ & and |
+escape_sed_replacement() {
+    local s="${1//\\/\\\\}"
+    s="${s//&/\\&}"
+    s="${s//|/\\|}"
+    printf '%s' "$s"
+}
+
 # Cleanup function for temporary files
 cleanup() {
     local exit_code=$?
@@ -319,12 +327,17 @@ create_new_agent_file() {
     local language_conventions
     language_conventions=$(get_language_conventions "$NEW_LANG")
     
-    # Perform substitutions with error checking using safer approach
-    # Escape special characters for sed by using a different delimiter or escaping
-    local escaped_lang=$(printf '%s\n' "$NEW_LANG" | sed 's/[\[\.*^$()+{}|]/\\&/g')
-    local escaped_framework=$(printf '%s\n' "$NEW_FRAMEWORK" | sed 's/[\[\.*^$()+{}|]/\\&/g')
-    local escaped_branch=$(printf '%s\n' "$CURRENT_BRANCH" | sed 's/[\[\.*^$()+{}|]/\\&/g')
-    
+    # Perform substitutions with error checking
+    # Escape for sed replacement context: \ & and | (delimiter)
+    local escaped_lang=$(escape_sed_replacement "$NEW_LANG")
+    local escaped_framework=$(escape_sed_replacement "$NEW_FRAMEWORK")
+    local escaped_branch=$(escape_sed_replacement "$CURRENT_BRANCH")
+    local escaped_project_name=$(escape_sed_replacement "$project_name")
+    local escaped_date=$(escape_sed_replacement "$current_date")
+    local escaped_structure=$(escape_sed_replacement "$project_structure")
+    local escaped_commands=$(escape_sed_replacement "$commands")
+    local escaped_conventions=$(escape_sed_replacement "$language_conventions")
+
     # Build technology stack and recent change strings conditionally
     local tech_stack
     if [[ -n "$escaped_lang" && -n "$escaped_framework" ]]; then
@@ -348,14 +361,17 @@ create_new_agent_file() {
         recent_change="- $escaped_branch: Added"
     fi
 
+    local escaped_tech_stack=$(escape_sed_replacement "$tech_stack")
+    local escaped_recent_change=$(escape_sed_replacement "$recent_change")
+
     local substitutions=(
-        "s|\[PROJECT NAME\]|$project_name|"
-        "s|\[DATE\]|$current_date|"
-        "s|\[EXTRACTED FROM ALL PLAN.MD FILES\]|$tech_stack|"
-        "s|\[ACTUAL STRUCTURE FROM PLANS\]|$project_structure|g"
-        "s|\[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES\]|$commands|"
-        "s|\[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE\]|$language_conventions|"
-        "s|\[LAST 3 FEATURES AND WHAT THEY ADDED\]|$recent_change|"
+        "s|\[PROJECT NAME\]|$escaped_project_name|"
+        "s|\[DATE\]|$escaped_date|"
+        "s|\[EXTRACTED FROM ALL PLAN.MD FILES\]|$escaped_tech_stack|"
+        "s|\[ACTUAL STRUCTURE FROM PLANS\]|$escaped_structure|g"
+        "s|\[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES\]|$escaped_commands|"
+        "s|\[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE\]|$escaped_conventions|"
+        "s|\[LAST 3 FEATURES AND WHAT THEY ADDED\]|$escaped_recent_change|"
     )
     
     for substitution in "${substitutions[@]}"; do
@@ -485,14 +501,15 @@ update_existing_agent_file() {
             # Keep only first 2 existing changes
             if [[ $existing_changes_count -lt 2 ]]; then
                 echo "$line" >> "$temp_file"
-                ((existing_changes_count++))
+                existing_changes_count=$((existing_changes_count + 1))
             fi
             continue
         fi
         
         # Update timestamp
         if [[ "$line" =~ \*\*Last\ updated\*\*:.*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] ]]; then
-            echo "$line" | sed "s/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/$current_date/" >> "$temp_file"
+            local escaped_date=$(escape_sed_replacement "$current_date")
+            echo "$line" | sed "s|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]|$escaped_date|" >> "$temp_file"
         else
             echo "$line" >> "$temp_file"
         fi
