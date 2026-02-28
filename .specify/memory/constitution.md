@@ -14,7 +14,7 @@ All engineering decisions must be evaluated against three axes:
 ### II. Type Safety Across the Stack
 
 - Backend services are written in C# / .NET with strict nullable reference types enabled.
-- Frontend is React + TypeScript with `strict: true` in `tsconfig.json`.
+- Frontend is React + TypeScript with `strict: true` in `tsconfig.json`. 
 - No `dynamic`, untyped `object`, or `any` at service boundaries without a documented exception.
 - All public APIs and inter-service contracts are formalized through explicit schemas (OpenAPI/Swagger for REST, protobuf/gRPC where applicable). DTOs/contracts are shared from a common `Shared/` project.
 
