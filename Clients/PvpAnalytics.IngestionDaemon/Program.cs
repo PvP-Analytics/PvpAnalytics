@@ -84,8 +84,8 @@ while (!cts.Token.IsCancellationRequested)
         {
             try
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                var result = await client.SubmitMatchAsync(payload, cancellationToken: cts.Token);
+                using var submitCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                var result = await client.SubmitMatchAsync(payload, cancellationToken: submitCts.Token);
                 Console.WriteLine(result.Accepted ? $"Accepted: {result.CorrelationId}" : $"Rejected: {result.Message}");
             }
             catch (OperationCanceledException)
