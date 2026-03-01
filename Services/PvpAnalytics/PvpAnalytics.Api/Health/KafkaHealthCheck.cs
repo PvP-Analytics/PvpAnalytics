@@ -7,29 +7,31 @@ namespace PvpAnalytics.Api.Health;
 
 internal sealed class KafkaHealthCheck : IHealthCheck
 {
+    private readonly IAdminClient _adminClient;
     private readonly KafkaOptions _kafkaOptions;
     private readonly IngestionOptions _ingestionOptions;
 
-    public KafkaHealthCheck(IOptions<KafkaOptions> kafkaOptions, IOptions<IngestionOptions> ingestionOptions)
+    public KafkaHealthCheck(
+        IAdminClient adminClient,
+        IOptions<KafkaOptions> kafkaOptions,
+        IOptions<IngestionOptions> ingestionOptions)
     {
+        _adminClient = adminClient;
         _kafkaOptions = kafkaOptions.Value;
         _ingestionOptions = ingestionOptions.Value;
     }
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        if (!_ingestionOptions.StreamingEnabled || string.IsNullOrWhiteSpace(_kafkaOptions.BootstrapServers))
-        {
-            return Task.FromResult(HealthCheckResult.Healthy("Streaming ingestion disabled or Kafka not configured."));
-        }
+        if (!_ingestionOptions.StreamingEnabled)
+            return Task.FromResult(HealthCheckResult.Healthy("Streaming ingestion disabled."));
+
+        if (string.IsNullOrWhiteSpace(_kafkaOptions.BootstrapServers))
+            return Task.FromResult(HealthCheckResult.Unhealthy("Streaming ingestion enabled but Kafka BootstrapServers not configured."));
 
         try
         {
-            using var admin = new AdminClientBuilder(new AdminClientConfig
-            {
-                BootstrapServers = _kafkaOptions.BootstrapServers
-            }).Build();
-            var meta = admin.GetMetadata(TimeSpan.FromSeconds(5));
+            var meta = _adminClient.GetMetadata(TimeSpan.FromSeconds(5));
             return Task.FromResult(HealthCheckResult.Healthy(
                 $"Kafka broker available. Brokers: {meta.Brokers.Count}."));
         }

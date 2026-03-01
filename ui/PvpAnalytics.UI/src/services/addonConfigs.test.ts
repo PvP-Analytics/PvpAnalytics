@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import axios from 'axios'
 import {
   getAddonConfigsBySpec,
   getAddonConfigsByComposition,
@@ -7,9 +6,14 @@ import {
   getAddonConfigById,
 } from './addonConfigs'
 
-vi.mock('axios')
-
-const mockGet = vi.mocked(axios.get)
+const { mockGet } = vi.hoisted(() => ({ mockGet: vi.fn() }))
+vi.mock('axios', () => ({
+  default: {
+    create: () => ({ get: mockGet }),
+    isAxiosError: (err: unknown): err is { response?: { status?: number } } =>
+      typeof err === 'object' && err !== null && 'response' in err,
+  },
+}))
 
 const baseUrl = 'http://localhost:8080/api'
 
@@ -78,7 +82,7 @@ describe('addonConfigs service', () => {
   })
 
   it('getAddonConfigById returns null on 404', async () => {
-    mockGet.mockRejectedValueOnce(new Error('404'))
+    mockGet.mockRejectedValueOnce({ response: { status: 404 } })
 
     const result = await getAddonConfigById(999)
 

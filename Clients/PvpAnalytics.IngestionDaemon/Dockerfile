@@ -10,4 +10,8 @@ RUN dotnet publish Clients/PvpAnalytics.IngestionDaemon/PvpAnalytics.IngestionDa
 FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/runtime:9.0
 WORKDIR /app
 COPY --from=build /app/publish .
+RUN groupadd --gid 1000 daemon \
+    && useradd --uid 1000 --gid daemon --no-create-home --shell /sbin/nologin daemon \
+    && chown -R daemon:daemon /app
+USER daemon
 ENTRYPOINT ["dotnet", "PvpAnalytics.IngestionDaemon.dll"]

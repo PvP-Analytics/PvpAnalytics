@@ -32,8 +32,14 @@ using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByt
 
 var state = new DaemonMatchState();
 string? line;
-while ((line = await reader.ReadLineAsync()) != null)
+while (true)
 {
+    line = await reader.ReadLineAsync();
+    if (line == null)
+    {
+        await Task.Delay(500);
+        continue;
+    }
     if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#')) continue;
     var parsed = CombatLogParser.ParseLine(line);
     if (parsed == null) continue;
@@ -56,8 +62,17 @@ while ((line = await reader.ReadLineAsync()) != null)
         {
             try
             {
-                var result = await client.SubmitMatchAsync(payload);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                var result = await client.SubmitMatchAsync(payload, cancellationToken: cts.Token);
                 Console.WriteLine(result.Accepted ? $"Accepted: {result.CorrelationId}" : $"Rejected: {result.Message}");
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Send failed: timeout or cancelled.");
+            }
+            catch (TaskCanceledException)
+            {
+                Console.WriteLine("Send failed: timeout or cancelled.");
             }
             catch (Exception ex)
             {
@@ -87,9 +102,6 @@ while ((line = await reader.ReadLineAsync()) != null)
         state.MatchEnd = parsed.Timestamp;
     }
 }
-
-Console.WriteLine("Done.");
-return 0;
 
 static string ComputeDedupKey(HashSet<string> participants, DateTime? start, DateTime? end, string arenaMatchId)
 {

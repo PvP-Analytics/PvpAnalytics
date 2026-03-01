@@ -1,3 +1,4 @@
+using System.Text;
 using Confluent.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,10 @@ namespace PvpAnalytics.Worker.Jobs;
 
 public sealed class IngestionKafkaConsumerJob : BackgroundService
 {
+    private const int MaxPersistRetries = 3;
+    private const int PersistRetryDelaySeconds = 2;
+    private const int MaxDlqSendRetries = 3;
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly KafkaOptions _kafkaOptions;
     private readonly IngestionOptions _ingestionOptions;
@@ -50,6 +55,11 @@ public sealed class IngestionKafkaConsumerJob : BackgroundService
         using var consumer = new ConsumerBuilder<string, byte[]>(config).Build();
         consumer.Subscribe(_kafkaOptions.IngestionTopic);
 
+        using var dlqProducer = new ProducerBuilder<string, byte[]>(new ProducerConfig
+        {
+            BootstrapServers = _kafkaOptions.BootstrapServers
+        }).Build();
+
         _logger.LogInformation("Ingestion Kafka consumer started. Topic: {Topic}", _kafkaOptions.IngestionTopic);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -60,7 +70,7 @@ public sealed class IngestionKafkaConsumerJob : BackgroundService
                 if (result?.Message?.Value == null)
                     continue;
 
-                await ProcessMessageAsync(consumer, result, stoppingToken).ConfigureAwait(false);
+                await ProcessMessageAsync(consumer, result, dlqProducer, stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -79,7 +89,11 @@ public sealed class IngestionKafkaConsumerJob : BackgroundService
         consumer.Close();
     }
 
-    private async Task ProcessMessageAsync(IConsumer<string, byte[]> consumer, ConsumeResult<string, byte[]> result, CancellationToken ct)
+    private async Task ProcessMessageAsync(
+        IConsumer<string, byte[]> consumer,
+        ConsumeResult<string, byte[]> result,
+        IProducer<string, byte[]> dlqProducer,
+        CancellationToken ct)
     {
         MatchPayload payload;
         try
@@ -97,18 +111,80 @@ public sealed class IngestionKafkaConsumerJob : BackgroundService
         var matchPersist = scope.ServiceProvider.GetRequiredService<IMatchPersistService>();
         var playerRepo = scope.ServiceProvider.GetRequiredService<IRepository<Player>>();
 
-        try
+        Exception? lastException = null;
+        for (var attempt = 1; attempt <= MaxPersistRetries; attempt++)
         {
-            var context = await MapToContextAsync(payload, playerRepo, ct).ConfigureAwait(false);
-            await matchPersist.PersistAsync(context, payload.MatchDedupKey, ct).ConfigureAwait(false);
-            consumer.Commit(result);
-            _logger.LogDebug("Persisted match from stream. DedupKey: {Key}", payload.MatchDedupKey);
+            try
+            {
+                var context = await MapToContextAsync(payload, playerRepo, ct).ConfigureAwait(false);
+                await matchPersist.PersistAsync(context, payload.MatchDedupKey, ct).ConfigureAwait(false);
+                consumer.Commit(result);
+                _logger.LogDebug("Persisted match from stream. DedupKey: {Key}", payload.MatchDedupKey);
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                _logger.LogWarning(ex, "Persist attempt {Attempt}/{Max} failed for DedupKey {Key}",
+                    attempt, MaxPersistRetries, payload.MatchDedupKey);
+                if (attempt < MaxPersistRetries)
+                    await Task.Delay(TimeSpan.FromSeconds(PersistRetryDelaySeconds), ct).ConfigureAwait(false);
+            }
         }
-        catch (Exception ex)
+
+        _logger.LogError(lastException, "Failed to persist match from stream after {Attempts} attempts. DedupKey: {Key}. Sending to DLQ.",
+            MaxPersistRetries, payload.MatchDedupKey);
+        await SendToDlqAndCommitAsync(consumer, result, payload, lastException!, dlqProducer, ct).ConfigureAwait(false);
+    }
+
+    private async Task SendToDlqAndCommitAsync(
+        IConsumer<string, byte[]> consumer,
+        ConsumeResult<string, byte[]> result,
+        MatchPayload payload,
+        Exception failure,
+        IProducer<string, byte[]> dlqProducer,
+        CancellationToken ct)
+    {
+        var headers = new Headers();
+        if (result.Message.Headers != null)
         {
-            _logger.LogError(ex, "Failed to persist match from stream. DedupKey: {Key}", payload.MatchDedupKey);
-            // Retry: do not commit; message will be redelivered. Optionally send to DLQ after N failures (future).
+            foreach (var h in result.Message.Headers)
+                headers.Add(h.Key, h.GetValueBytes());
         }
+        headers.Add("dlq-error", Encoding.UTF8.GetBytes(failure.Message));
+        headers.Add("dlq-timestamp", Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString("O")));
+        headers.Add("dlq-dedup-key", Encoding.UTF8.GetBytes(payload.MatchDedupKey ?? string.Empty));
+
+        var dlqMessage = new Message<string, byte[]>
+        {
+            Key = result.Message.Key,
+            Value = result.Message.Value,
+            Headers = headers
+        };
+
+        Exception? lastDlqException = null;
+        for (var attempt = 1; attempt <= MaxDlqSendRetries; attempt++)
+        {
+            try
+            {
+                await dlqProducer.ProduceAsync(_kafkaOptions.IngestionDeadLetterTopic, dlqMessage, ct).ConfigureAwait(false);
+                consumer.Commit(result);
+                _logger.LogInformation("Sent message to DLQ and committed offset. DedupKey: {Key}", payload.MatchDedupKey);
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastDlqException = ex;
+                _logger.LogWarning(ex, "DLQ produce attempt {Attempt}/{Max} failed for DedupKey {Key}",
+                    attempt, MaxDlqSendRetries, payload.MatchDedupKey);
+                if (attempt < MaxDlqSendRetries)
+                    await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
+            }
+        }
+
+        _logger.LogError(lastDlqException, "DLQ send failed after {Attempts} attempts for DedupKey {Key}. Offset not committed; message will redeliver.",
+            MaxDlqSendRetries, payload.MatchDedupKey);
+        throw lastDlqException!;
     }
 
     private static async Task<MatchIngestionContext> MapToContextAsync(
@@ -125,23 +201,37 @@ public sealed class IngestionKafkaConsumerJob : BackgroundService
         }
 
         var playersByKey = new Dictionary<string, Player>(StringComparer.OrdinalIgnoreCase);
-        foreach (var name in allNames)
+        if (allNames.Count > 0)
         {
-            var existing = await playerRepo.ListAsync(p => p.Name == name, ct).ConfigureAwait(false);
-            var player = existing.Count > 0 ? existing[0] : new Player { Name = name };
-            playersByKey[name] = player;
+            var existingPlayers = await playerRepo.ListAsync(p => allNames.Contains(p.Name), ct).ConfigureAwait(false);
+            foreach (var player in existingPlayers)
+                playersByKey[player.Name] = player;
+            foreach (var name in allNames)
+            {
+                if (!playersByKey.ContainsKey(name))
+                    playersByKey[name] = new Player { Name = name };
+            }
         }
 
         var entries = new List<CombatLogEntry>();
         foreach (var e in payload.Entries)
         {
-            var sourcePlayer = string.IsNullOrEmpty(e.SourceName) ? null : playersByKey.GetValueOrDefault(e.SourceName);
-            var targetPlayer = string.IsNullOrEmpty(e.TargetName) ? null : playersByKey.GetValueOrDefault(e.TargetName);
+            Player? sourcePlayer = string.IsNullOrEmpty(e.SourceName) ? null : playersByKey.GetValueOrDefault(e.SourceName);
+            if (sourcePlayer == null && !string.IsNullOrEmpty(e.SourceName))
+                sourcePlayer = new Player { Name = e.SourceName! };
+
+            Player? targetPlayer = string.IsNullOrEmpty(e.TargetName) ? null : playersByKey.GetValueOrDefault(e.TargetName);
+            if (targetPlayer == null && !string.IsNullOrEmpty(e.TargetName))
+                targetPlayer = new Player { Name = e.TargetName! };
+
+            if (sourcePlayer == null || targetPlayer == null)
+                continue;
+
             entries.Add(new CombatLogEntry
             {
                 Timestamp = e.Timestamp?.ToDateTime() ?? DateTime.UtcNow,
-                SourcePlayer = sourcePlayer ?? new Player { Name = e.SourceName ?? string.Empty },
-                TargetPlayer = targetPlayer ?? new Player { Name = e.TargetName ?? string.Empty },
+                SourcePlayer = sourcePlayer,
+                TargetPlayer = targetPlayer,
                 Ability = e.Ability ?? string.Empty,
                 DamageDone = e.DamageDone,
                 HealingDone = e.HealingDone,

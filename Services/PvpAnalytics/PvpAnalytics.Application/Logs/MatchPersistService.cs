@@ -19,11 +19,14 @@ public sealed class MatchPersistService(
         var match = CreateMatchEntity(context.ArenaZone, context.Start, context.End, context.ArenaMatchId,
             context.GameMode, context.MapName, uniqueHash);
 
-        match = await PersistMatchWithDuplicateHandlingAsync(match, uniqueHash, context.Participants.Count, ct).ConfigureAwait(false);
-        await PersistCombatLogEntriesAsync(context.Entries, match.Id, ct).ConfigureAwait(false);
-        await PersistMatchResultsAsync(context.Participants, context.PlayersByKey, context.PlayerSpells, match.Id, ct).ConfigureAwait(false);
+        var (persistedMatch, isNew) = await PersistMatchWithDuplicateHandlingAsync(match, uniqueHash, context.Participants.Count, ct).ConfigureAwait(false);
+        if (isNew)
+        {
+            await PersistCombatLogEntriesAsync(context.Entries, persistedMatch.Id, ct).ConfigureAwait(false);
+            await PersistMatchResultsAsync(context.Participants, context.PlayersByKey, context.PlayerSpells, persistedMatch.Id, ct).ConfigureAwait(false);
+        }
 
-        return match;
+        return persistedMatch;
     }
 
     private static Match CreateMatchEntity(
@@ -50,7 +53,7 @@ public sealed class MatchPersistService(
         };
     }
 
-    private async Task<Match> PersistMatchWithDuplicateHandlingAsync(Match match, string uniqueHash, int participantCount, CancellationToken ct)
+    private async Task<(Match Match, bool IsNew)> PersistMatchWithDuplicateHandlingAsync(Match match, string uniqueHash, int participantCount, CancellationToken ct)
     {
         try
         {
@@ -58,12 +61,12 @@ public sealed class MatchPersistService(
             logger.LogInformation(
                 "Persisted new match {MatchId} with UniqueHash {UniqueHash} and {ParticipantCount} participants.",
                 match.Id, uniqueHash, participantCount);
-            return match;
+            return (match, true);
         }
         catch (Exception ex)
         {
             if (IsUniqueConstraintViolation(ex))
-                return await HandleDuplicateMatchAsync(uniqueHash, ct).ConfigureAwait(false);
+                return (await HandleDuplicateMatchAsync(uniqueHash, ct).ConfigureAwait(false), false);
             throw;
         }
     }
@@ -92,10 +95,8 @@ public sealed class MatchPersistService(
     private async Task PersistCombatLogEntriesAsync(List<CombatLogEntry> entries, long matchId, CancellationToken ct)
     {
         foreach (var e in entries)
-        {
             e.MatchId = matchId;
-            await entryRepo.AddAsync(e, true, ct).ConfigureAwait(false);
-        }
+        await entryRepo.AddRangeAsync(entries, true, ct).ConfigureAwait(false);
     }
 
     private async Task PersistMatchResultsAsync(
