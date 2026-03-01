@@ -70,10 +70,6 @@ while (true)
             {
                 Console.WriteLine("Send failed: timeout or cancelled.");
             }
-            catch (TaskCanceledException)
-            {
-                Console.WriteLine("Send failed: timeout or cancelled.");
-            }
             catch (Exception ex)
             {
                 Console.WriteLine($"Send failed: {ex.Message}");

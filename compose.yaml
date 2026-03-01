@@ -280,6 +280,7 @@ services:
     depends_on:
       pvpanalytics:
         condition: service_healthy
+    restart: unless-stopped
     profiles:
       - daemon
 

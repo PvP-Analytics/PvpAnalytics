@@ -107,17 +107,18 @@ public sealed class IngestionKafkaConsumerJob : BackgroundService
             return;
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var matchPersist = scope.ServiceProvider.GetRequiredService<IMatchPersistService>();
-        var playerRepo = scope.ServiceProvider.GetRequiredService<IRepository<Player>>();
-
         Exception? lastException = null;
         for (var attempt = 1; attempt <= MaxPersistRetries; attempt++)
         {
             try
             {
-                var context = await MapToContextAsync(payload, playerRepo, ct).ConfigureAwait(false);
-                await matchPersist.PersistAsync(context, payload.MatchDedupKey, ct).ConfigureAwait(false);
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var matchPersist = scope.ServiceProvider.GetRequiredService<IMatchPersistService>();
+                    var playerRepo = scope.ServiceProvider.GetRequiredService<IRepository<Player>>();
+                    var context = await MapToContextAsync(payload, playerRepo, ct).ConfigureAwait(false);
+                    await matchPersist.PersistAsync(context, payload.MatchDedupKey, ct).ConfigureAwait(false);
+                }
                 consumer.Commit(result);
                 _logger.LogDebug("Persisted match from stream. DedupKey: {Key}", payload.MatchDedupKey);
                 return;
