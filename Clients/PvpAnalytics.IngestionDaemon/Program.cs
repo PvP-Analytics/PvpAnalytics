@@ -19,6 +19,8 @@ var sourceTag = config["Ingestion:Source"] ?? "daemon";
 var versionTag = config["Ingestion:Version"] ?? "1.0";
 var dlqPath = config["Ingestion:DlqPath"] ?? config["DLQ_PATH"] ?? Path.Combine(AppContext.BaseDirectory, "dlq");
 
+const int MaxEntries = 100_000;
+
 if (string.IsNullOrEmpty(logPath) || !File.Exists(logPath))
 {
     Console.WriteLine("Usage: set Ingestion:LogPath (or LOG_PATH) to a combat log file. Optionally set IngressUrl (default http://localhost:8080).");
@@ -57,9 +59,9 @@ while (!cts.Token.IsCancellationRequested)
         if (stream.Position > stream.Length)
         {
             Console.WriteLine("Log file truncated. Resetting to beginning.");
+            HandoffInFlightMatch(state, sourceTag, versionTag, dlqPath, "log truncated");
             stream.Seek(0, SeekOrigin.Begin);
             reader.DiscardBufferedData();
-            if (state.Active) state.Reset();
             continue;
         }
 
@@ -69,12 +71,12 @@ while (!cts.Token.IsCancellationRequested)
             if (currentCreationUtc != lastKnownCreationUtc)
             {
                 Console.WriteLine("Log file rotated. Reopening.");
+                HandoffInFlightMatch(state, sourceTag, versionTag, dlqPath, "log rotated");
                 reader.Dispose();
                 await stream.DisposeAsync();
                 stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
                 lastKnownCreationUtc = currentCreationUtc;
-                if (state.Active) state.Reset();
                 continue;
             }
         }
@@ -149,6 +151,11 @@ while (!cts.Token.IsCancellationRequested)
     {
         if (!string.IsNullOrEmpty(parsed.SourceName)) state.Participants.Add(parsed.SourceName.Trim('"'));
         if (!string.IsNullOrEmpty(parsed.TargetName)) state.Participants.Add(parsed.TargetName.Trim('"'));
+        if (state.Entries.Count >= MaxEntries)
+        {
+            state.Entries.RemoveAt(0);
+            Console.WriteLine($"Entries buffer at capacity ({MaxEntries}), dropped oldest. ArenaMatchId: {state.ArenaMatchId}");
+        }
         state.Entries.Add(new DaemonCombatEntry
         {
             Timestamp = parsed.Timestamp,
@@ -194,6 +201,25 @@ if (state.Active)
 
 reader.Dispose();
 await stream.DisposeAsync();
+
+static void HandoffInFlightMatch(DaemonMatchState state, string sourceTag, string versionTag, string dlqPath, string reason)
+{
+    if (!state.Active) return;
+    try
+    {
+        var payload = BuildPayload(state, sourceTag, versionTag);
+        if (payload != null)
+            PersistToDlq(payload, dlqPath, reason);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Handoff failed ({reason}): {ex.Message}");
+    }
+    finally
+    {
+        state.Reset();
+    }
+}
 
 static void PersistToDlq(MatchPayload payload, string dlqDir, string reason)
 {
