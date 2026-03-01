@@ -17,6 +17,7 @@ import RivalsPage from './pages/RivalsPage'
 import HighlightsPage from './pages/HighlightsPage'
 import CommunityRankingsPage from './pages/CommunityRankingsPage'
 import DiscoveryPage from './pages/DiscoveryPage'
+import BuildsPage from './pages/BuildsPage'
 
 const App = () => {
   return (
@@ -39,6 +40,7 @@ const App = () => {
           <Route path="/rivals" element={<RivalsPage />} />
           <Route path="/highlights" element={<HighlightsPage />} />
           <Route path="/rankings" element={<CommunityRankingsPage />} />
+          <Route path="/builds" element={<BuildsPage />} />
           <Route path="/discover" element={<DiscoveryPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

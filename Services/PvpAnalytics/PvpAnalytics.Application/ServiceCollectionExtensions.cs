@@ -23,6 +23,7 @@ public static class ServiceCollectionExtensions
         
         // Register factory
         services.AddScoped<ICombatLogIngestionServiceFactory, CombatLogIngestionServiceFactory>();
+        services.AddScoped<IMatchPersistService, MatchPersistService>();
         services.AddScoped<IMatchDetailService, MatchDetailService>();
         services.AddScoped<IOpponentScoutingService, OpponentScoutingService>();
         services.AddScoped<IMatchupAnalyticsService, MatchupAnalyticsService>();

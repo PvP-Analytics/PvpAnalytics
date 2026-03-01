@@ -1,4 +1,5 @@
 using System.Text;
+using Confluent.Kafka;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -9,14 +10,34 @@ using PvpAnalytics.Shared.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(options =>
+    options.ConfigureEndpointDefaults(lo => lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2));
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
-builder.Services.AddHealthChecks();
+builder.Services.Configure<PvpAnalytics.Core.Configuration.KafkaOptions>(
+    builder.Configuration.GetSection(PvpAnalytics.Core.Configuration.KafkaOptions.SectionName));
+builder.Services.Configure<PvpAnalytics.Core.Configuration.IngestionOptions>(
+    builder.Configuration.GetSection(PvpAnalytics.Core.Configuration.IngestionOptions.SectionName));
+
+builder.Services.AddSingleton<IAdminClient>(sp =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PvpAnalytics.Core.Configuration.KafkaOptions>>().Value;
+    var bootstrapServers = string.IsNullOrWhiteSpace(options.BootstrapServers) ? "localhost:9092" : options.BootstrapServers;
+    return new AdminClientBuilder(new AdminClientConfig { BootstrapServers = bootstrapServers }).Build();
+});
+
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("OK"), tags: new[] { "live" })
+    .AddKafkaHealthCheck(builder.Configuration);
+
+builder.Services.AddSingleton<PvpAnalytics.Api.Services.IIngestionPublisher, PvpAnalytics.Api.Services.KafkaIngestionPublisher>();
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddGrpc();
 
 // JWT Configuration and Security
 // 
@@ -140,8 +161,16 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapGrpcService<PvpAnalytics.Api.Controllers.IngestionGrpcService>();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = reg => !reg.Tags.Contains("ready"),
+});
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = reg => reg.Tags.Contains("ready"),
+});
 
 await app.RunAsync();
 

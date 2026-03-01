@@ -107,6 +107,17 @@ Upload a World of Warcraft combat log file for processing.
 - Persists matches, players, and combat log entries
 - Returns all matches found in the file
 
+### Streaming ingestion (Phase 5)
+
+In addition to file upload, matches can be submitted via gRPC (Protobuf) to an Ingress API that publishes to Kafka. A Worker then consumes and persists to the same PostgreSQL schema (idempotent by `match_dedup_key`).
+
+**Enable:**
+- Set `Ingestion:StreamingEnabled=true` and `Kafka:BootstrapServers` (e.g. `localhost:9092`) for the API.
+- Set `Ingestion:StreamingConsumerEnabled=true` and Kafka settings for the Worker.
+- Start Kafka (e.g. `docker compose up -d kafka`); the API and Worker use the same topic `pvpanalytics.ingestion.matches`.
+
+**Daemon:** A .NET daemon under `Clients/PvpAnalytics.IngestionDaemon` parses a local combat log file and sends match payloads via gRPC. Run with `LOG_PATH=/path/to/CombatLog.txt` and `INGRESS_URL=http://localhost:8080`. See that project’s README. To run the daemon with Docker Compose: `docker compose --profile daemon up -d ingestion-daemon` (mount the log file under `/logs`).
+
 ## Combat Log Parsing
 
 ### Parser Features

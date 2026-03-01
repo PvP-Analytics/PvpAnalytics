@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
@@ -20,6 +20,7 @@
 
     <ItemGroup>
         <Protobuf Include="Protos\logging.proto" GrpcServices="Both" />
+        <Protobuf Include="Protos\ingestion.proto" GrpcServices="Both" />
     </ItemGroup>
 
 </Project>
