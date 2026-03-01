@@ -17,6 +17,7 @@ var logPath = config["Ingestion:LogPath"] ?? config["LOG_PATH"] ?? "";
 var ingressUrl = config["Ingestion:IngressUrl"] ?? config["INGRESS_URL"] ?? "http://localhost:8080";
 var sourceTag = config["Ingestion:Source"] ?? "daemon";
 var versionTag = config["Ingestion:Version"] ?? "1.0";
+var dlqPath = config["Ingestion:DlqPath"] ?? config["DLQ_PATH"] ?? Path.Combine(AppContext.BaseDirectory, "dlq");
 
 if (string.IsNullOrEmpty(logPath) || !File.Exists(logPath))
 {
@@ -27,8 +28,9 @@ if (string.IsNullOrEmpty(logPath) || !File.Exists(logPath))
 using var channel = GrpcChannel.ForAddress(ingressUrl.TrimEnd('/'), new GrpcChannelOptions { HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true } });
 var client = new IngestionService.IngestionServiceClient(channel);
 
-await using var stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+var stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+var lastKnownCreationUtc = File.GetCreationTimeUtc(logPath);
 
 var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>
@@ -52,6 +54,31 @@ while (!cts.Token.IsCancellationRequested)
     }
     if (line == null)
     {
+        if (stream.Position > stream.Length)
+        {
+            Console.WriteLine("Log file truncated. Resetting to beginning.");
+            stream.Seek(0, SeekOrigin.Begin);
+            reader.DiscardBufferedData();
+            if (state.Active) state.Reset();
+            continue;
+        }
+
+        if (File.Exists(logPath))
+        {
+            var currentCreationUtc = File.GetCreationTimeUtc(logPath);
+            if (currentCreationUtc != lastKnownCreationUtc)
+            {
+                Console.WriteLine("Log file rotated. Reopening.");
+                reader.Dispose();
+                await stream.DisposeAsync();
+                stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                lastKnownCreationUtc = currentCreationUtc;
+                if (state.Active) state.Reset();
+                continue;
+            }
+        }
+
         try
         {
             await Task.Delay(500, cts.Token);
@@ -86,18 +113,35 @@ while (!cts.Token.IsCancellationRequested)
             {
                 using var submitCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
                 var result = await client.SubmitMatchAsync(payload, cancellationToken: submitCts.Token);
-                Console.WriteLine(result.Accepted ? $"Accepted: {result.CorrelationId}" : $"Rejected: {result.Message}");
+                if (result.Accepted)
+                {
+                    Console.WriteLine($"Accepted: {result.CorrelationId}");
+                    state.Reset();
+                }
+                else
+                {
+                    Console.WriteLine($"Rejected: {result.Message}");
+                    PersistToDlq(payload, dlqPath, $"rejected: {result.Message}");
+                    state.Reset();
+                }
             }
             catch (OperationCanceledException)
             {
                 Console.WriteLine("Send failed: timeout or cancelled.");
+                PersistToDlq(payload, dlqPath, "timeout or cancelled");
+                state.Reset();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Send failed: {ex.Message}");
+                PersistToDlq(payload, dlqPath, ex.Message);
+                state.Reset();
             }
         }
-        state.Reset();
+        else
+        {
+            state.Reset();
+        }
         continue;
     }
 
@@ -130,12 +174,40 @@ if (state.Active)
         {
             using var finalCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var result = await client.SubmitMatchAsync(payload, cancellationToken: finalCts.Token);
-            Console.WriteLine(result.Accepted ? $"Shutdown: submitted in-flight match. {result.CorrelationId}" : $"Shutdown: rejected. {result.Message}");
+            if (result.Accepted)
+            {
+                Console.WriteLine($"Shutdown: submitted in-flight match. {result.CorrelationId}");
+            }
+            else
+            {
+                Console.WriteLine($"Shutdown: rejected. {result.Message}");
+                PersistToDlq(payload, dlqPath, $"shutdown rejected: {result.Message}");
+            }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Shutdown: failed to submit in-flight match. {ex.Message}");
+            PersistToDlq(payload, dlqPath, $"shutdown failure: {ex.Message}");
         }
+    }
+}
+
+reader.Dispose();
+await stream.DisposeAsync();
+
+static void PersistToDlq(MatchPayload payload, string dlqDir, string reason)
+{
+    try
+    {
+        Directory.CreateDirectory(dlqDir);
+        var fileName = $"{DateTime.UtcNow:yyyyMMddTHHmmss}_{payload.MatchDedupKey ?? "unknown"}.bin";
+        var filePath = Path.Combine(dlqDir, fileName);
+        File.WriteAllBytes(filePath, payload.ToByteArray());
+        Console.WriteLine($"DLQ: persisted payload to {filePath} ({reason})");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"DLQ: failed to persist payload ({reason}): {ex.Message}");
     }
 }
 
