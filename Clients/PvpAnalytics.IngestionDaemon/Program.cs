@@ -30,14 +30,36 @@ var client = new IngestionService.IngestionServiceClient(channel);
 await using var stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
 
+var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
+{
+    cts.Cancel();
+    e.Cancel = true;
+};
+AppDomain.CurrentDomain.ProcessExit += (_, _) => cts.Cancel();
+
 var state = new DaemonMatchState();
 string? line;
-while (true)
+while (!cts.Token.IsCancellationRequested)
 {
-    line = await reader.ReadLineAsync();
+    try
+    {
+        line = await reader.ReadLineAsync(cts.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        break;
+    }
     if (line == null)
     {
-        await Task.Delay(500);
+        try
+        {
+            await Task.Delay(500, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            break;
+        }
         continue;
     }
     if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#')) continue;
@@ -96,6 +118,24 @@ while (true)
             CrowdControl = string.Empty
         });
         state.MatchEnd = parsed.Timestamp;
+    }
+}
+
+if (state.Active)
+{
+    var payload = BuildPayload(state, sourceTag, versionTag);
+    if (payload != null)
+    {
+        try
+        {
+            using var finalCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var result = await client.SubmitMatchAsync(payload, cancellationToken: finalCts.Token);
+            Console.WriteLine(result.Accepted ? $"Shutdown: submitted in-flight match. {result.CorrelationId}" : $"Shutdown: rejected. {result.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Shutdown: failed to submit in-flight match. {ex.Message}");
+        }
     }
 }
 
